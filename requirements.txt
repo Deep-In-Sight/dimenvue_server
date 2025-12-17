@@ -3,8 +3,9 @@ fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
 # Computer vision and image processing
-opencv-python>=4.8.0
-numpy>=1.24.0
+# Pin opencv and numpy for scipy compatibility (system scipy needs numpy<1.25)
+opencv-python>=4.8.0,<4.10.0
+numpy>=1.24.0,<1.25.0
 
 # System utilities
 psutil>=5.9.0
@@ -14,8 +15,8 @@ pyudev>=0.24.0
 pyexiftool>=0.5.0
 
 # Point cloud processing
-open3d>=0.18.0
+open3d>=0.17.0,<0.18.0
 laspy>=2.4.0
 
 # Visualization and plotting
-matplotlib>=3.7.0
+# matplotlib is provided by ROS2 base image (ros-humble-rqt-plot dependency)
