@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
     liborc-0.4-dev \
     libssl-dev \
     libx264-dev \
+    libvpx-dev \
     yasm \
     nasm \
     gettext \
@@ -45,6 +46,7 @@ RUN git clone --depth 1 --branch ${GSTREAMER_VERSION} https://gitlab.freedesktop
         --libdir=/usr/lib/x86_64-linux-gnu \
         --buildtype=release \
         -Dgst-plugins-ugly:x264=enabled \
+        -Dgst-plugins-good:vpx=enabled \
         -Dgpl=enabled \
         -Dtests=disabled \
         -Dexamples=disabled \
