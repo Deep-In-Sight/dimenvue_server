@@ -56,9 +56,8 @@ RUN git clone --depth 1 --branch ${GSTREAMER_VERSION} https://gitlab.freedesktop
     rm -rf gstreamer
 
 # Install additional dependencies for RidgeRun components
+# Note: GStreamer dev files come from source build above, not apt
 RUN apt-get update && apt-get install -y \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
     libjansson-dev \
     libjson-glib-dev \
     libreadline-dev \
