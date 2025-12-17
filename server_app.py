@@ -72,96 +72,147 @@ def rename_item(uuid: UUID, req: dict[str, Any]):
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@app.put("/initEverything")
-def init_everything():
-    resp = {}
-    print(f"init_everything: {resp}")
-    time.sleep(2)
-    return resp
-
-
-@app.get("/settings")
-def get_all_settings():
-    return settings.data
-
-
-@app.get("/settings/{settingKey:path}")
-def get_settings(settingKey: str):
-    try:
-        value = settings.get(settingKey)
-        print(f"get_settings: {value}")
-        return {"value": value}
-    except KeyError:
-        raise HTTPException(
-            status_code=404, detail=f"Setting key {settingKey} not found")
-
-
-@app.put("/settings/{settingKey:path}")
-def put_settings(settingKey: str, req: dict[str, Any]):
-    try:
-        value = req["newValue"]
-        settings.set(settingKey, value)
-        print(f"put_settings: {{'{settingKey}': {value}}}")
-        return {}
-    except KeyError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-
-@app.put("/settings/restoreDefaults")
-def restore_defaults():
-    settings.restore_defaults()
-    resp = {}
-    print(f"restore_defaults: {resp}")
-    return resp
-
-
 @app.put("/cameraApp/init")
-def cameraApp_init():
-    cameraApp.gst_init()
-    resp = {}
-    print(f"init: {resp}")
-    return resp
+async def cameraApp_init():
+    """
+    Initialize camera GStreamer pipelines.
+
+    Returns:
+        200: Initialization successful or already initialized
+        409: Camera is in a transitional state (initializing/deinitializing)
+        500: Initialization failed
+    """
+    try:
+        await cameraApp.gst_init()
+    except RuntimeError as e:
+        # Camera is in invalid state for init (e.g., already initializing)
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during initialization
+        print(f"init error: {e}")
+        raise HTTPException(status_code=500, detail=f"Initialization failed: {str(e)}")
 
 
 @app.put("/cameraApp/deinit")
-def cameraApp_deinit():
-    cameraApp.gst_deinit()
-    resp = {}
-    print(f"deinit: {resp}")
-    return resp
+async def cameraApp_deinit():
+    """
+    Deinitialize camera GStreamer pipelines.
+
+    Returns:
+        200: Deinitialization successful or already deinitialized
+        409: Camera is in a transitional state (initializing/deinitializing)
+        500: Deinitialization failed
+    """
+    try:
+        await cameraApp.gst_deinit()
+    except RuntimeError as e:
+        # Camera is in invalid state for deinit (e.g., already deinitializing)
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during deinitialization
+        print(f"deinit error: {e}")
+        raise HTTPException(status_code=500, detail=f"Deinitialization failed: {str(e)}")
+
+
+@app.get("/cameraApp/state")
+def get_camera_state():
+    """
+    Get current camera initialization state.
+
+    Returns:
+        dict: Current state, initialization status, and error information
+    """
+    return cameraApp.get_state()
+
+
+@app.get("/cameraApp/preview-index")
+def get_preview_index():
+    """Get current preview index."""
+    return {"index": cameraApp.current_preview_index}
 
 
 @app.put("/cameraApp/preview-index")
 def set_preview_index(req: dict[str, Any]):
     index = req["index"]
-    active_index = cameraApp.setPreviewIndex(index)
-    resp = {"index": active_index}
-    print(f"set_preview_index: {resp}")
-    return resp
+    try:
+        active_index = cameraApp.setPreviewIndex(index)
+        resp = {"index": active_index}
+        print(f"set_preview_index: {resp}")
+        return resp
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.put("/cameraApp/capture")
-def capture():
-    cameraApp.capture()
-    resp = {}
-    print(f"capture: {resp}")
-    return resp
+async def capture():
+    """
+    Capture a frame from all cameras.
+
+    Returns:
+        200: Capture successful
+        409: Camera is in a state that doesn't allow capture
+        500: Capture failed
+    """
+    try:
+        await cameraApp.capture()
+        resp = {"status": "captured"}
+        print(f"capture: {resp}")
+        return resp
+    except RuntimeError as e:
+        # Camera is in invalid state for capture
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during capture
+        print(f"capture error: {e}")
+        raise HTTPException(status_code=500, detail=f"Capture failed: {str(e)}")
 
 
 @app.put("/cameraApp/recordStart")
-def record_start():
-    cameraApp.recordStart()
-    resp = {}
-    print(f"record_start: {resp}")
-    return resp
+async def record_start():
+    """
+    Start recording from all cameras.
+
+    Returns:
+        200: Recording started
+        409: Camera is in a state that doesn't allow recording
+        500: Recording start failed
+    """
+    try:
+        await cameraApp.recordStart()
+        resp = {"status": "recording_started"}
+        print(f"record_start: {resp}")
+        return resp
+    except RuntimeError as e:
+        # Camera is in invalid state for recording
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during recording start
+        print(f"record_start error: {e}")
+        raise HTTPException(status_code=500, detail=f"Recording start failed: {str(e)}")
 
 
 @app.put("/cameraApp/recordStop")
-def record_stop():
-    cameraApp.recordStop()
-    resp = {}
-    print(f"record_stop: {resp}")
-    return resp
+async def record_stop():
+    """
+    Stop recording and save the video.
+
+    Returns:
+        200: Recording stopped
+        409: Camera is not currently recording
+        500: Recording stop failed
+    """
+    try:
+        await cameraApp.recordStop()
+        resp = {"status": "recording_stopped"}
+        print(f"record_stop: {resp}")
+        return resp
+    except RuntimeError as e:
+        # Camera is in invalid state for stopping
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during recording stop
+        print(f"record_stop error: {e}")
+        raise HTTPException(status_code=500, detail=f"Recording stop failed: {str(e)}")
 
 
 @app.get("/cameraApp/settings")
@@ -172,7 +223,10 @@ def get_camera_settings():
 @app.put("/cameraApp/settings")
 def put_camera_settings(req: dict[str, Any]):
     new_settings = req.get("settings", req)
-    return cameraApp.save_settings(new_settings)
+    try:
+        return cameraApp.save_settings(new_settings)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/mappingApp/settings")
@@ -250,27 +304,58 @@ def clear_export_queue():
 
 
 @app.put("/mappingApp/start")
-def start_mapping():
-    """Start the mapping process"""
+async def start_mapping():
+    """
+    Start the mapping process by launching ROS2 Fast-LIO.
+
+    Returns:
+        200: Mapping started or already running
+        409: Mapping is in a transitional state (starting/stopping)
+        500: Failed to start mapping
+    """
     try:
-        return mappingApp.start()
+        resp = await mappingApp.start()
+        return resp
     except RuntimeError as e:
+        # Mapping is in invalid state for start
         raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during start
+        print(f"start_mapping error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start mapping: {str(e)}")
 
 
-@app.get("/mappingApp/initStatus")
-def get_mapping_init_status():
-    """Get mapping initialization status"""
-    return mappingApp.get_init_status()
+@app.get("/mappingApp/state")
+def get_mapping_state():
+    """
+    Get current mapping state for status monitoring.
+
+    Returns:
+        dict: Current state, process info, and error information
+    """
+    return mappingApp.get_state()
 
 
 @app.put("/mappingApp/stop")
-def stop_mapping():
-    """Stop the mapping process and finalize results"""
+async def stop_mapping():
+    """
+    Stop the mapping process and finalize results.
+
+    Returns:
+        200: Mapping stopped or already stopped
+        409: Mapping is in a transitional state (starting/stopping)
+        500: Failed to stop mapping
+    """
     try:
-        return mappingApp.stop()
+        resp = await mappingApp.stop()
+        return resp
     except RuntimeError as e:
+        # Mapping is in invalid state for stop
         raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        # Unexpected error during stop
+        print(f"stop_mapping error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to stop mapping: {str(e)}")
 
 
 if __name__ == "__main__":

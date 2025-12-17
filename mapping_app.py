@@ -1,8 +1,14 @@
 import os
 import json
-import subprocess
-import shutil
+import threading
+import time
 from pathlib import Path
+from enum import Enum
+from typing import Optional
+import asyncio
+
+from ros2 import StartEverything, StopEverything, GetInitStatus
+from finalize_mapping import do_finalize
 
 # Default mapping settings with options/range format
 DEFAULT_MAPPING_SETTINGS = {
@@ -11,7 +17,7 @@ DEFAULT_MAPPING_SETTINGS = {
         "current_selection": 1
     },
     "file_format": {
-        "options": ["PLY", "LAS", "LAZ"],
+        "options": ["PLY", "PCD", "LAS", "LAZ"],
         "current_selection": 1
     },
     "map_quality": {
@@ -21,20 +27,43 @@ DEFAULT_MAPPING_SETTINGS = {
 }
 
 
+class MappingState(Enum):
+    """
+    Mapping operation state machine.
+
+    Lifecycle:
+    IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
+    
+    ERROR state can be entered from any state on failure.
+    
+    """
+    IDLE = "idle"
+    STARTING = "starting"              # Creating ROS2 nodes
+    INITIALIZING = "initializing"      # Nodes exist, waiting for IMU stabilization
+    RUNNING = "running"                # IMU stabilized, actively mapping
+    STOPPING = "stopping"              # Destroying nodes
+    ERROR = "error"
+
+
 class MappingApp:
-    """Handles mapping/spatial map settings and Docker control."""
+    """Handles mapping/spatial scan settings and ROS2 node lifecycle management."""
 
     def __init__(self, data_path: str, catalog=None):
-        self.data_path = data_path
         self.settings_path = os.path.join(data_path, "mapping_settings.json")
         self.settings = self._load_settings()
+        self.active_settings = self.settings.copy()
         self.catalog = catalog
 
-        # Docker and mapping configuration
-        self.docker_image = "osrf/ros:humble-desktop-full-jammy"
-        self.artifact_dir = "/tmp/mapping_artifact"
-        self.container_name = "fastlio_mapping"
-        self.is_running = False
+        # ROS2 and mapping configuration
+        self.artifact_dir = os.path.join(data_path, "mapping_artifact")
+
+        # State machine for start/stop operations
+        self.state = MappingState.IDLE
+        self._state_lock = asyncio.Lock()
+        self._process_error = None
+        
+        self._polling_task = None
+
 
     def _load_settings(self):
         """Load settings from disk or return defaults."""
@@ -51,17 +80,26 @@ class MappingApp:
 
     def get_settings(self):
         """Return current settings."""
-        return self.settings
+        return self.active_settings
 
     def save_settings(self, new_settings: dict):
-        """Update and save settings."""
+        """Update and save settings.
+
+        When idle, active_settings is also updated immediately.
+        When mapping is running, active_settings updates after stop.
+        """
         self.settings = new_settings
         self._save_settings()
+
+        # When idle, sync active_settings immediately
+        if self.state == MappingState.IDLE:
+            self.active_settings = self.settings.copy()
+
         return self.settings
 
     def _get_setting_value(self, key: str):
         """Get the actual value of a setting (resolves current_selection)."""
-        setting = self.settings.get(key, {})
+        setting = self.active_settings.get(key, {})
         if "options" in setting:
             idx = setting.get("current_selection", 0)
             return setting["options"][idx]
@@ -69,137 +107,110 @@ class MappingApp:
             return setting.get("current_selection", setting["range"][0])
         return None
 
-    def start(self):
-        """Start the mapping process by launching Docker container."""
-        if self.is_running:
-            raise RuntimeError("Mapping is already running")
+    async def _poll_init_status(self):
+        """Poll IMU initialization status and update state machine."""
+        while True:
+            imu_status = GetInitStatus()
+            async with self._state_lock:
+                if imu_status == "TRACKING" and self.state == MappingState.STARTING:
+                    self.state = MappingState.INITIALIZING
+                elif imu_status == "STABILIZED" and self.state == MappingState.INITIALIZING:
+                    self.state = MappingState.RUNNING
+                    break
+            await asyncio.sleep(1.0)
 
-        # Create artifact directory
+    async def _do_start(self):
         os.makedirs(self.artifact_dir, exist_ok=True)
-
-        # Get file format from settings
         file_format = self._get_setting_value("file_format")
-        if file_format:
-            file_format = file_format.lower()  # Convert PLY -> ply
-        else:
-            file_format = "ply"
 
-        # Stop any existing container with this name
-        subprocess.run(["docker", "stop", self.container_name],
-                      capture_output=True, check=False)
-        subprocess.run(["docker", "rm", self.container_name],
-                      capture_output=True, check=False)
+        await StartEverything(file_format, self.artifact_dir)
+        self._polling_task = asyncio.create_task(self._poll_init_status())
 
-        # Launch Docker container with Fast-LIO
-        docker_cmd = [
-            "docker", "run",
-            "--name", self.container_name,
-            "-v", "/home/linh/ros2_ws:/ros2_ws",
-            "-v", "/f/shared_data:/shared_data",
-            "-v", f"{self.artifact_dir}:/tmp/mapping_artifact",
-            "-d",  # Detached mode
-            self.docker_image,
-            "bash", "-c",
-            f"source /opt/ros/humble/setup.bash && "
-            f"source /ros2_ws/install/setup.bash && "
-            f"ros2 launch fast_lio mapping_with_bridge.launch.py "
-            f"artifact_dir:=/tmp/mapping_artifact file_format:={file_format}"
-        ]
+    async def start(self):
+        """
+        Start the mapping process by launching ROS2 Fast-LIO nodes.
 
-        try:
-            result = subprocess.run(docker_cmd, capture_output=True, text=True, check=True)
-            self.is_running = True
-            return {"status": "started", "container_id": result.stdout.strip()}
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to start mapping container: {e.stderr}")
+        State transition: IDLE → STARTING → INITIALIZING → RUNNING
+
+        Returns:
+            dict: Status message
+
+        Raises:
+            RuntimeError: If mapping is in an invalid state for starting
+        """
+        async with self._state_lock:
+            # Idempotent: already running or initializing
+            if self.state in [MappingState.RUNNING, MappingState.INITIALIZING]:
+                return {"details": "already_running", "state": self.state.value}
+
+            # Reject if in transition
+            if self.state in [MappingState.STARTING, MappingState.STOPPING]:
+                raise RuntimeError(f"Cannot start: mapping is {self.state.value}")
+
+            self.state = MappingState.STARTING
+
+        self.active_settings = self.settings.copy()
+        await self._do_start()
+            
+        return {"details": "started", "state": self.state.value}
 
     def get_init_status(self):
-        """Get initialization status by reading the status file."""
-        status_file = os.path.join(self.artifact_dir, "initStatus")
+        """
+        Get the IMU initialization status.
 
-        if not os.path.exists(status_file):
-            return {"status": "INITIALIZING"}
+        Returns:
+            dict: imu status
+        """
+        return {
+            "imu_status": GetInitStatus()
+        }
 
-        try:
-            with open(status_file, 'r') as f:
-                status = f.read().strip()
-            return {"status": status}
-        except Exception as e:
-            return {"status": "INITIALIZING", "error": str(e)}
-
-    def stop(self):
-        """Stop the mapping process and finalize results."""
-        if not self.is_running:
-            raise RuntimeError("Mapping is not running")
-
-        # Stop the Docker container
-        try:
-            subprocess.run(["docker", "stop", self.container_name],
-                          capture_output=True, text=True, check=True, timeout=30)
-        except subprocess.TimeoutExpired:
-            # Force kill if graceful shutdown times out
-            subprocess.run(["docker", "kill", self.container_name],
-                          capture_output=True, check=False)
+    async def _do_stop(self):
+        await StopEverything()
 
         # Run finalization script
         file_format = self._get_setting_value("file_format")
-        if file_format:
-            file_format = file_format.lower()
-        else:
-            file_format = "ply"
 
-        finalize_script = "/home/linh/ros2_ws/src/FAST_LIO/scripts/finalize_mapping.py"
-        try:
-            subprocess.run(
-                ["python3", finalize_script, self.artifact_dir, "--file-format", file_format],
-                capture_output=True, text=True, check=True, timeout=300
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"Warning: Finalization script failed: {e.stderr}")
-        except subprocess.TimeoutExpired:
-            print("Warning: Finalization script timed out")
+        await asyncio.to_thread(do_finalize, self.artifact_dir, file_format)
 
-        # Add to catalog if catalog is available
         if self.catalog:
-            self._add_to_catalog(file_format)
+            self.catalog.add_item("Scan", self.artifact_dir)
 
-        # Cleanup
-        subprocess.run(["docker", "rm", self.container_name],
-                      capture_output=True, check=False)
-        self.is_running = False
+        async with self._state_lock:
+            self.state = MappingState.IDLE
 
-        return {"status": "stopped"}
+    async def stop(self):
+        """
+        Stop the mapping process and finalize results.
 
-    def _add_to_catalog(self, file_format: str):
-        """Add mapping result to catalog and move artifacts."""
-        import uuid
-        # File paths in artifact directory
-        map_file = os.path.join(self.artifact_dir, f"map_result.{file_format}")
-        thumbnail_file = os.path.join(self.artifact_dir, "thumbnail.png")
-        metadata_file = os.path.join(self.artifact_dir, "map_metadata.json")
-        sensor_raw_dir = os.path.join(self.artifact_dir, "sensor_raw")
+        Returns:
+            dict: Status message
 
-        # Build contents dict for catalog
-        contents = {}
+        Raises:
+            RuntimeError: If mapping is in an invalid state for stopping
+        """
+        async with self._state_lock:
+            # Idempotent: already idle
+            if self.state == MappingState.IDLE:
+                return {"details": "already_stopped", "state": self.state.value}
 
-        if os.path.exists(map_file):
-            contents["pointcloud"] = map_file
+            # Reject if in transition
+            if self.state in [MappingState.STARTING, MappingState.INITIALIZING, MappingState.STOPPING]:
+                raise RuntimeError(f"Cannot stop: mapping is {self.state.value}")
 
-        if os.path.exists(thumbnail_file):
-            contents["thumbnail"] = thumbnail_file
+            self.state = MappingState.STOPPING
 
-        if os.path.exists(metadata_file):
-            contents["metadata"] = metadata_file
+        await self._do_stop()
+        self.active_settings = self.settings.copy()
+        return {"details": "stopped", "state": self.state.value}
 
-        if os.path.exists(sensor_raw_dir):
-            # Get all files in sensor_raw directory
-            sensor_files = [os.path.join(sensor_raw_dir, f)
-                          for f in os.listdir(sensor_raw_dir)
-                          if os.path.isfile(os.path.join(sensor_raw_dir, f))]
-            if sensor_files:
-                contents["raw"] = sensor_files
+    def get_state(self):
+        """
+        Get current mapping state for status monitoring.
 
-        # Add to catalog (catalog will move files and create entry)
-        item_uuid = self.catalog.add_item("Scans", contents)
-
-        return item_uuid
+        Returns:
+            dict: Current state
+        """
+        return {
+            "state": self.state.value,
+        }

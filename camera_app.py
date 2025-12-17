@@ -12,6 +12,36 @@ import subprocess
 import shutil
 import exiftool
 from item_utility import gen_thumbnail_factory
+import asyncio
+from enum import Enum
+
+
+class CameraState(Enum):
+    """
+    Camera state machine.
+
+    Lifecycle:
+    IDLE → INITIALIZING → READY → DEINITIALIZING → IDLE
+
+    Operations from READY state:
+    - Capture:  READY → CAPTURING → READY
+    - Record:   READY → RECORD_STARTING → RECORDING → RECORD_STOPPING → READY
+
+    Notes:
+    - init/deinit rejected while in CAPTURING, RECORD_STARTING, RECORDING, RECORD_STOPPING
+    - capture rejected unless in READY state
+    - recordStart rejected unless in READY state
+    - recordStop rejected unless in RECORDING state
+    """
+    IDLE = "idle"
+    INITIALIZING = "initializing"
+    READY = "ready"
+    CAPTURING = "capturing"
+    RECORD_STARTING = "record_starting"
+    RECORDING = "recording"
+    RECORD_STOPPING = "record_stopping"
+    DEINITIALIZING = "deinitializing"
+    ERROR = "error"
 
 
 # Default camera settings with options/range format
@@ -59,6 +89,9 @@ class MultiCamApp:
         self.media_path = media_path
         self.settings_path = os.path.join(media_path, "camera_settings.json")
         self.settings = self._load_settings()
+        
+        self.capture_tmp_path = os.path.join(media_path, "capture_tmp")
+        self.record_tmp_path = os.path.join(media_path, "record_tmp")
 
         # Create Janus streaming plugin config
         janus_cfg_path = f'{media_path}/janus.plugin.streaming.jcfg'
@@ -87,11 +120,15 @@ class MultiCamApp:
         self.current_preview_index = 0
         self.catalog = catalog
         self.pipelines = {}
+        self.caps = ""
 
-        self._gst_inited = False
+        # State machine for init/deinit operations
+        self.state = CameraState.IDLE
+        self._state_lock = asyncio.Lock()
 
     def __del__(self):
-        self.gst_deinit()
+        # Note: __del__ cannot be async, so we call the blocking version
+        self._do_gst_deinit()
 
         # Kill GStreamer daemon
         if hasattr(self, 'gstd_proc'):
@@ -121,7 +158,23 @@ class MultiCamApp:
         return self.settings
 
     def save_settings(self, new_settings: dict):
-        """Update and save settings."""
+        """Update and save settings.
+
+        Args:
+            new_settings: Dictionary of settings to update
+
+        Returns:
+            The updated settings
+
+        Raises:
+            ValueError: If new_settings contains invalid keys
+        """
+        # Validate keys - only allow keys that exist in DEFAULT_CAMERA_SETTINGS
+        valid_keys = set(DEFAULT_CAMERA_SETTINGS.keys())
+        invalid_keys = set(new_settings.keys()) - valid_keys
+        if invalid_keys:
+            raise ValueError(f"Invalid settings keys: {', '.join(sorted(invalid_keys))}")
+
         self.settings = new_settings
         self._save_settings()
         return self.settings
@@ -238,17 +291,18 @@ webcam: {
         if capture_format == "PNG":
             # pngenc needs RGB/RGBA, not I420 - add videoconvert
             encoder_element = "videoconvert ! pngenc"
-            sink_location = f"{self.media_path}/{sensor_name}.png"
         else:  # JPG
             if self.TEST_MODE:
                 encoder_element = f"jpegenc quality={quality_value}"
             else:
                 encoder_element = f"nvjpegenc idct-method=float quality={quality_value}"
-            sink_location = f"{self.media_path}/{sensor_name}.jpg"
+
+        sink_location = f"{self.capture_tmp_path}/{sensor_name}.{capture_format.lower()}"
 
         pipeline = (
             f"interpipesrc name=isrc_snapshot{camera_index} listen-to=isink_cam{camera_index} num-buffers=1 ! "
-            f"{encoder_element} ! filesink location={sink_location}"
+            f"{encoder_element} ! "
+            f"filesink location={sink_location}"
         )
         return pipeline
 
@@ -262,21 +316,23 @@ webcam: {
 
         # Build encoder and muxer based on format
         if record_format == "AVI":
-            if self.TEST_MODE:
-                encoder_element = f"x264enc bitrate={record_bitrate * 1000} ! h264parse ! avimux"
-            else:
-                encoder_element = f"nvv4l2h264enc bitrate={bitrate_bps} ! h264parse ! avimux"
-            sink_location = f"{self.media_path}/{sensor_name}.avi"
+            muxer_element = "avimux"
         else:  # MP4
-            if self.TEST_MODE:
-                encoder_element = f"x264enc bitrate={record_bitrate * 1000} ! h264parse ! mp4mux"
-            else:
-                encoder_element = f"nvv4l2h264enc bitrate={bitrate_bps} ! h264parse ! mp4mux"
-            sink_location = f"{self.media_path}/{sensor_name}.mp4"
+            muxer_element = "mp4mux"
 
+        if self.TEST_MODE:
+            encoder_element = f"x264enc bitrate={record_bitrate * 1000}"
+        else:
+            encoder_element = f"nvv4l2h264enc bitrate={bitrate_bps}"
+
+        sink_location = f"{self.record_tmp_path}/{sensor_name}.{record_format.lower()}"
         pipeline = (
             f"interpipesrc name=isrc_record{camera_index} listen-to=isink_cam{camera_index} format=time ! "
-            f"queue ! {encoder_element} ! filesink location={sink_location}"
+            f"queue ! "
+            f"{encoder_element} ! "
+            f"h264parse ! "
+            f"{muxer_element} ! "
+            f"filesink location={sink_location}"
         )
         return pipeline
 
@@ -329,11 +385,7 @@ webcam: {
             self.gstc.element_set(
                 f"pcam{i}", f"cam{i}", "foreground-color", f"{color}")
 
-    def gst_init(self):
-        os.system("rm -f /tmp/preview*")
-        os.system(f"rm -f {self.media_path}/snapshot*")
-        os.system(f"rm -f {self.media_path}/record*")
-
+    def _do_gst_init(self):
         # Build pipelines with current settings
         self.caps = self._construct_caps()
         self.pipelines = {
@@ -354,73 +406,207 @@ webcam: {
             time.sleep(0.5)
         self.gstc.pipeline_play("pcomposite")
         self.gstc.pipeline_play("ppreview0")
-        self._gst_inited = True
 
-    def gst_deinit(self):
-        if not self._gst_inited:
-            return
+    def _do_gst_deinit(self):
+        """Internal blocking deinitialization logic"""
         for pipeline_name in self.pipelines.keys():
             self.gstc.pipeline_stop(pipeline_name)
             self.gstc.pipeline_delete(pipeline_name)
-        self._gst_inited = False
+
+    async def gst_init(self):
+        """
+        Thread-safe async initialization of GStreamer pipelines.
+
+        Returns:
+            dict: Status message
+
+        Raises:
+            RuntimeError: If camera is in an invalid state for initialization
+        """
+        async with self._state_lock:
+            # Idempotent: already ready
+            if self.state == CameraState.READY:
+                return {"status": "already_initialized", "state": self.state.value}
+
+            # Reject if in transition or busy with capture/recording
+            if self.state in [
+                CameraState.INITIALIZING,
+                CameraState.DEINITIALIZING,
+                CameraState.CAPTURING,
+                CameraState.RECORD_STARTING,
+                CameraState.RECORDING,
+                CameraState.RECORD_STOPPING
+            ]:
+                raise RuntimeError(f"Cannot init: camera is {self.state.value}")
+
+            self.state = CameraState.INITIALIZING
+
+        try:
+            # Run blocking init in thread pool to avoid blocking event loop
+            await asyncio.to_thread(self._do_gst_init)
+            async with self._state_lock:
+                self.state = CameraState.READY
+        except Exception as e:
+            print(f"gst_init error: {e}")
+            async with self._state_lock:
+                self.state = CameraState.ERROR
+
+    async def gst_deinit(self):
+        """
+        Thread-safe async deinitialization of GStreamer pipelines.
+
+        Returns:
+            dict: Status message
+
+        Raises:
+            RuntimeError: If camera is in an invalid state for deinitialization
+        """
+        async with self._state_lock:
+            # Idempotent: already idle
+            if self.state == CameraState.IDLE:
+                return {"status": "already_deinitialized", "state": self.state.value}
+
+            # Reject if in transition or busy with capture/recording
+            if self.state in [
+                CameraState.INITIALIZING,
+                CameraState.DEINITIALIZING,
+                CameraState.CAPTURING,
+                CameraState.RECORD_STARTING,
+                CameraState.RECORDING,
+                CameraState.RECORD_STOPPING
+            ]:
+                raise RuntimeError(f"Cannot deinit: camera is {self.state.value}")
+
+            self.state = CameraState.DEINITIALIZING
+
+        try:
+            await asyncio.to_thread(self._do_gst_deinit)
+            async with self._state_lock:
+                self.state = CameraState.IDLE
+        except Exception as e:
+            print(f"gst_deinit error: {e}")
+            async with self._state_lock:
+                self.state = CameraState.ERROR
+
+    def get_state(self):
+        """
+        Get current camera state for status monitoring.
+
+        Returns:
+            dict: Current state and error information
+        """
+        return {
+            "state": self.state.value,
+        }
 
     def setPreviewIndex(self, preview_index: int):
         """
         Set the preview index to the given index.
-        """
-        if preview_index >= 0 and preview_index < 4:
-            self.current_preview_index = preview_index
-            target = "isink_comp" if preview_index == 3 else f"isink_cam{preview_index}"
-            self.gstc.element_set(
-                "ppreview0", "isrc_preview0", "listen-to", target)
-            return preview_index
-        else:
-            return self.current_preview_index
 
-    def capture(self):
+        Args:
+            preview_index: Index 0-3 (0=left, 1=front, 2=right, 3=composite)
+
+        Returns:
+            The new preview index
+
+        Raises:
+            ValueError: If preview_index is not in range 0-3
         """
-        Capture the current frame from all camera, return uuid of the capture.
-        """
+        if not isinstance(preview_index, int) or preview_index < 0 or preview_index > 3:
+            raise ValueError(f"Invalid preview index: {preview_index}. Must be 0-3.")
+
+        self.current_preview_index = preview_index
+        target = "isink_comp" if preview_index == 3 else f"isink_cam{preview_index}"
+        self.gstc.element_set(
+            "ppreview0", "isrc_preview0", "listen-to", target)
+        return preview_index
+
+    def _do_capture(self):
+        """Internal blocking capture logic."""
+        shutil.rmtree(self.capture_tmp_path, ignore_errors=True)
+        os.makedirs(self.capture_tmp_path)
+
         # Get capture format from settings
-        capture_format = (self._get_setting_value("capture_format") or "JPG").lower()
-        ext = "png" if capture_format == "png" else "jpg"
+        capture_format = self._get_setting_value("capture_format").lower()
 
         files = {
-            sensor_name: f"{self.media_path}/{sensor_name}.{ext}" for sensor_name in self.SENSORNAME_MAP.values()}
-
-        # Delete old files first
-        for f in files.values():
-            if os.path.exists(f):
-                os.remove(f)
+            sensor_name: f"{self.capture_tmp_path}/{sensor_name}.{capture_format}" for sensor_name in self.SENSORNAME_MAP.values()}
 
         for i in range(3):
             self.gstc.pipeline_play(f"psnapshot{i}")
-            
+
         time.sleep(0.5)
 
         for i in range(3):
             self.gstc.pipeline_stop(f"psnapshot{i}")
 
-        thumbnails = [gen_thumbnail_factory(file) for file in files.values()]
-        contents = {
-            **files,
-            "thumbnails": thumbnails,
-        }
-        self.catalog.add_item("MultiViewImage", contents)
+        gen_thumbnail_factory(files['front'])
 
-    def recordStart(self):
+        self.catalog.add_item("Image", self.capture_tmp_path)
+
+    async def capture(self):
         """
-        Record the current frame from all camera, return uuid of the record.
+        Capture the current frame from all cameras.
+
+        State transition: READY → CAPTURING → READY
+
+        Raises:
+            RuntimeError: If camera is not in READY state
         """
+        async with self._state_lock:
+            # Only allow capture when ready
+            if self.state != CameraState.READY:
+                raise RuntimeError(f"Cannot capture: camera is {self.state.value}")
+
+            self.state = CameraState.CAPTURING
+
+        try:
+            # Run capture in thread pool to avoid blocking event loop
+            await asyncio.to_thread(self._do_capture)
+            async with self._state_lock:
+                self.state = CameraState.READY
+        except Exception as e:
+            print(f"capture error: {e}")
+            async with self._state_lock:
+                self.state = CameraState.ERROR
+
+    def _do_record_start(self):
+        """Internal blocking record start logic."""
+        shutil.rmtree(self.record_tmp_path, ignore_errors=True)
+        os.makedirs(self.record_tmp_path)
 
         for i in range(3):
             self.gstc.pipeline_play(f"precord{i}")
 
-    def recordStop(self):
+    async def recordStart(self):
         """
-        Stop the recording and save the record to the media path.
-        """
+        Start recording from all cameras.
 
+        State transition: READY → RECORD_STARTING → RECORDING
+
+        Raises:
+            RuntimeError: If camera is not in READY state
+        """
+        async with self._state_lock:
+            # Only allow recording when ready
+            if self.state != CameraState.READY:
+                raise RuntimeError(f"Cannot start recording: camera is {self.state.value}")
+
+            self.state = CameraState.RECORD_STARTING
+
+        try:
+            self._do_record_start()
+
+            async with self._state_lock:
+                self.state = CameraState.RECORDING
+
+        except Exception as e:
+            print(f"recordStart error: {e}")
+            async with self._state_lock:
+                self.state = CameraState.ERROR
+
+    def _do_record_stop(self):
+        """Internal blocking record stop logic."""
         for i in range(3):
             pname = f"precord{i}"
             self.gstc.event_eos(pname)
@@ -429,15 +615,40 @@ webcam: {
             self.gstc.pipeline_stop(pname)
 
         # Get record format from settings
-        record_format = (self._get_setting_value("record_format") or "MP4").lower()
-        ext = "avi" if record_format == "avi" else "mp4"
+        record_format = self._get_setting_value("record_format").lower()
 
         files = {
-            sensor_name: f"{self.media_path}/{sensor_name}.{ext}" for sensor_name in self.SENSORNAME_MAP.values()
+            sensor_name: f"{self.media_path}/{sensor_name}.{record_format}" for sensor_name in self.SENSORNAME_MAP.values()
         }
-        thumbnails = [gen_thumbnail_factory(file) for file in files.values()]
-        contents = {
-            **files,
-            "thumbnails": thumbnails,
-        }
-        self.catalog.add_item("MultiViewVideo", contents)
+
+        gen_thumbnail_factory(files['front'])
+
+        self.catalog.add_item("Video", self.record_tmp_path)
+
+    async def recordStop(self):
+        """
+        Stop recording and save the record to the media path.
+
+        State transition: RECORDING → RECORD_STOPPING → READY
+
+        Raises:
+            RuntimeError: If camera is not in RECORDING state
+        """
+        async with self._state_lock:
+            # Only allow stopping when recording
+            if self.state != CameraState.RECORDING:
+                raise RuntimeError(f"Cannot stop recording: camera is {self.state.value}")
+
+            self.state = CameraState.RECORD_STOPPING
+
+        try:
+            # Run record stop in thread pool to avoid blocking event loop
+            await asyncio.to_thread(self._do_record_stop)
+
+            async with self._state_lock:
+                self.state = CameraState.READY
+
+        except Exception as e:
+            print(f"recordStop error: {e}")
+            async with self._state_lock:
+                self.state = CameraState.ERROR

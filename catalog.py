@@ -114,51 +114,33 @@ class Catalog:
     def get_data(self):
         return self.data
 
-    def _move_content(self, old_path: str, destination_folder: str) -> str | None:
-        """Moves a single file and returns its basename, or None if it fails."""
-        if not os.path.exists(old_path):
-            print(f"Warning: Source file not found, cannot move: {old_path}")
-            return None
-        filename = os.path.basename(old_path)
-        new_path = os.path.join(destination_folder, filename)
-        shutil.move(old_path, new_path)
-        return filename
 
-    def add_item(self, item_type: str, contents: dict[str, list[str] | str]):
+    def add_item(self, item_type: str, content_path: str):
         """
-        Adds a new item to the catalog. Moves content files into a new directory
-        and records the item in the JSON catalog.
+        Adds a new item to the catalog library and update catalog.json
+        Args:
+            item_type: Type of the item (e.g., "Image", "Video", "Scan")
+            content_path: path to the folder containing item files
         """
         item_name = self._get_new_item_name()
         item_uuid = str(uuid4())
         item_disk_path = os.path.join(self.data_path, item_name)
         os.makedirs(item_disk_path, exist_ok=True)
 
-        new_contents = {}
-        for content_type, content in contents.items():
-            if isinstance(content, list):
-                moved_files = [self._move_content(
-                    file, item_disk_path) for file in content]
-                new_contents[content_type] = [
-                    file for file in moved_files if file is not None]
-            else:
-                filename = self._move_content(content, item_disk_path)
-                if filename:
-                    new_contents[content_type] = filename
+        shutil.move(content_path, item_disk_path)
 
         # Calculate metadata for the new item
         size_on_disk = get_folder_size(item_disk_path)
-        item_size = get_item_size(item_type, new_contents, item_disk_path)
+        item_size = get_item_size(item_type, item_disk_path)
 
         with self._write_lock:
             self.data["items"][item_uuid] = {
                 "name": item_name,
                 "type": item_type,
                 "url": item_disk_path,
-                "files": new_contents,
-                "date": time.time(),           # Unix timestamp
-                "size_on_disk": size_on_disk,  # Bytes on disk
-                "size": item_size              # Duration (s) for video, area (m²) for map, None for image
+                "date": time.time(),
+                "size_on_disk": size_on_disk,
+                "size": item_size
             }
 
         # Update storage stats

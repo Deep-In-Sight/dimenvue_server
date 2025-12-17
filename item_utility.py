@@ -17,19 +17,19 @@ import struct
 
 def gen_thumbnail_factory(file_path: str, size: tuple[int, int] = (256, 256)) -> str:
     """
-    Generate a thumbnail for a file and return the temp file path.
+    Generate a thumbnail for a file and save to thumbnail.jpg.
     Supports: .jpg, .jpeg, .png, .mp4, .mov, .avi
     """
     ext = os.path.splitext(file_path)[1].lower()
-    temp_file = tempfile.mkstemp(suffix='.jpg')[1]
+    dst_name = os.path.dirname(file_path) + "thumbnail.jpg"
     if ext in (".jpg", ".jpeg", ".png"):
         img = gen_thumbnail_image(file_path, size)
     elif ext in (".mp4", ".mov", ".avi"):
         img = gen_thumbnail_video(file_path, size)
     else:
         raise ValueError(f"Unsupported file type: {ext}")
-    cv2.imwrite(temp_file, img)
-    return temp_file
+    cv2.imwrite(dst_name, img)
+    return dst_name
 
 
 def gen_thumbnail_image(file_path: str, size: tuple[int, int] = (256, 256)) -> np.ndarray:
@@ -103,38 +103,44 @@ def get_exiftool_metadata(file_path: str, key_map: list) -> dict:
 
 # ==================== Item Size Calculations ====================
 
-def get_item_size(item_type: str, contents: dict, item_path: str) -> float | None:
+def get_item_size(item_type: str, item_path: str) -> float | None:
     """
     Get item-specific size metric.
 
     Returns:
-    - MultiViewVideo: Duration in seconds (from first video file)
-    - MappingScan: Area in square meters (from LAS bounds)
-    - MultiViewImage: None (no size metric)
+    - Video: Duration in seconds (from front.<ext> video file)
+    - Scan: Area in square meters (from metadata.json)
+    - Other types: None (no size metric)
     """
-    if item_type == "MultiViewVideo":
-        # Get duration from first available video file
-        for key in ['left', 'front', 'right']:
-            if key in contents:
-                video_file = os.path.join(item_path, contents[key])
-                if os.path.exists(video_file):
-                    duration = get_video_duration(video_file)
-                    if duration is not None:
-                        return duration
+    if item_type == "Video":
+        # Get duration from front.<ext> video file
+        try:
+            files = os.listdir(item_path)
+            for filename in files:
+                if filename.startswith("front."):
+                    video_file = os.path.join(item_path, filename)
+                    if os.path.exists(video_file):
+                        duration = get_video_duration(video_file)
+                        if duration is not None:
+                            return duration
+        except OSError:
+            pass
         return None
 
-    elif item_type == "MappingScan":
-        # Calculate area from LAS file bounds
-        las_file = contents.get('point_cloud')
-        if las_file:
-            las_path = os.path.join(item_path, las_file)
-            if os.path.exists(las_path):
-                bounds = get_las_bounds(las_path)
-                if bounds:
-                    return (bounds['maxX'] - bounds['minX']) * (bounds['maxY'] - bounds['minY'])
+    elif item_type == "Scan":
+        # Get area from metadata.json file
+        try:
+            metadata_path = os.path.join(item_path, "map_metadata.json")
+            if os.path.exists(metadata_path):
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    metadata = json.load(f)
+                    area = metadata.get('area')
+                    if area is not None:
+                        return float(area)
+        except (OSError, json.JSONDecodeError, ValueError):
+            pass
         return None
 
-    # MultiViewImage and others have no size metric
     return None
 
 
@@ -176,50 +182,18 @@ def get_video_duration(video_path: str) -> float | None:
     return None
 
 
-def get_las_bounds(las_path: str) -> dict | None:
-    """
-    Get bounds from a LAS file header.
-
-    Returns dict with minX, maxX, minY, maxY, minZ, maxZ or None on error.
-    """
-    try:
-        with open(las_path, 'rb') as f:
-            # Read LAS header
-            signature = f.read(4)
-            if signature != b'LASF':
-                return None
-
-            # Skip to offset 179 where bounds start (LAS 1.x format)
-            f.seek(179)
-
-            # Read bounds (6 doubles: maxX, minX, maxY, minY, maxZ, minZ)
-            bounds_data = f.read(48)  # 6 * 8 bytes
-            bounds = struct.unpack('<6d', bounds_data)
-
-            return {
-                'maxX': bounds[0],
-                'minX': bounds[1],
-                'maxY': bounds[2],
-                'minY': bounds[3],
-                'maxZ': bounds[4],
-                'minZ': bounds[5]
-            }
-    except Exception as e:
-        print(f"Error reading LAS bounds from {las_path}: {e}")
-        return None
-
-
 def get_folder_size(folder_path: str) -> int:
     """
-    Calculate total size of all files in a folder (non-recursive for item folders).
+    Calculate total size of all files in a folder (recursive).
     Returns size in bytes.
     """
     total_size = 0
     try:
-        for filename in os.listdir(folder_path):
-            file_path = os.path.join(folder_path, filename)
-            if os.path.isfile(file_path):
-                total_size += os.path.getsize(file_path)
+        for dirpath, dirnames, filenames in os.walk(folder_path):
+            for filename in filenames:
+                file_path = os.path.join(dirpath, filename)
+                if os.path.isfile(file_path):
+                    total_size += os.path.getsize(file_path)
     except OSError:
         pass
     return total_size

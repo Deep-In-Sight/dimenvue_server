@@ -1,0 +1,22 @@
+# Test dependencies for DimenvuePro Server
+
+# Testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-timeout>=2.2.0
+pytest-cov>=4.1.0
+
+# Async HTTP client for testing
+httpx>=0.25.0
+
+# Mocking
+pytest-mock>=3.12.0
+
+# Process/memory monitoring for load tests
+psutil>=5.9.0
+
+# Fixtures and utilities
+factory-boy>=3.3.0
+
+# Code coverage
+coverage>=7.3.0
