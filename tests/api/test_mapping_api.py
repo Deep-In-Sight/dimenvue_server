@@ -830,36 +830,41 @@ async def test_update_settings_during_mapping(async_client: AsyncClient):
 @pytest.mark.integration
 async def test_invalid_setting(async_client: AsyncClient):
     """
-    Test 25: Invalid Setting
-    Invalid option value → 400 Bad Request
+    Test 25: Invalid Setting (MAP-SET-004)
+    PUT /mappingApp/settings with invalid file_format and valid preview_voxel_size
+    → 400 Bad Request, invalid values ignored, valid value updated
     """
     with patch('mapping_app.GetInitStatus', return_value="UNKNOWN"):
 
-        # Get current settings
+        # Get current settings to compare after
         get_response = await async_client.get("/mappingApp/settings")
-        current_settings = get_response.json()
+        initial_settings = get_response.json()
+        initial_voxel_selection = initial_settings["preview_voxel_size"]["current_selection"]
 
-        # Create invalid settings (invalid file format)
-        invalid_settings = current_settings.copy()
-        invalid_settings["file_format"] = {
-            "options": ["PLY", "PCD", "LAS", "LAZ"],
-            "current_selection": 10  # Invalid index
+        # Send flat format with invalid file_format and valid preview_voxel_size
+        # "OBJ" is not in the valid options ["PLY", "PCD", "LAS", "LAZ"]
+        # 5 is a valid preview_voxel_size (in options [5, 10, 15])
+        invalid_request = {
+            "file_format": "OBJ",       # Invalid: not in options
+            "preview_voxel_size": 5     # Valid: in options [5, 10, 15]
         }
 
-        # Try to update with invalid settings
+        # Try to update with mixed valid/invalid settings
         update_response = await async_client.put(
             "/mappingApp/settings",
-            json={"settings": invalid_settings}
+            json=invalid_request
         )
 
-        # Expects: 400 Bad Request
-        # Note: The implementation may handle this differently
-        # If the API doesn't validate, this test documents the expected behavior
-        assert update_response.status_code in [400, 200]
+        # Expects: 400 Bad Request indicating invalid values
+        assert update_response.status_code == 400
 
-        # If 200, verify the invalid value was ignored
-        if update_response.status_code == 200:
-            verify_response = await async_client.get("/mappingApp/settings")
-            settings = verify_response.json()
-            # The current_selection should be within valid range
-            assert 0 <= settings["file_format"]["current_selection"] < len(settings["file_format"]["options"])
+        # Verify invalid value was ignored but valid value was updated
+        verify_response = await async_client.get("/mappingApp/settings")
+        settings = verify_response.json()
+
+        # file_format should remain unchanged (invalid "OBJ" was ignored)
+        assert settings["file_format"]["current_selection"] == initial_settings["file_format"]["current_selection"]
+
+        # preview_voxel_size should be updated to index 0 (value 5)
+        # Options are [5, 10, 15], so value 5 = index 0
+        assert settings["preview_voxel_size"]["current_selection"] == 0

@@ -25,71 +25,73 @@ async def test_get_full_catalog(async_client, temp_catalog, tmp_path):
     GET /catalog with 5 items (2 images, 2 videos, 1 scan) -> 200 OK
     Returns all items with uuid, name, type, storage_stats
     """
-    # Create 5 items: 2 images, 2 videos, 1 scan
-    items = []
+    # Mock video duration extraction since we use fake video files
+    with patch('item_utility.get_video_duration', return_value=(60, 30)):
+        # Create 5 items: 2 images, 2 videos, 1 scan
+        items = []
 
-    # Create 2 image items
-    for i in range(2):
-        item_path = tmp_path / f"image_{i}"
+        # Create 2 image items
+        for i in range(2):
+            item_path = tmp_path / f"image_{i}"
+            item_path.mkdir(parents=True, exist_ok=True)
+            (item_path / "front.jpg").write_bytes(b"fake image data " * 100)
+            (item_path / "left.jpg").write_bytes(b"fake image data " * 100)
+            uuid = temp_catalog.add_item("Image", str(item_path))
+            items.append(uuid)
+
+        # Create 2 video items
+        for i in range(2):
+            item_path = tmp_path / f"video_{i}"
+            item_path.mkdir(parents=True, exist_ok=True)
+            (item_path / "front.mp4").write_bytes(b"fake video data " * 200)
+            uuid = temp_catalog.add_item("Video", str(item_path))
+            items.append(uuid)
+
+        # Create 1 scan item
+        item_path = tmp_path / "scan_0"
         item_path.mkdir(parents=True, exist_ok=True)
-        (item_path / "front.jpg").write_bytes(b"fake image data " * 100)
-        (item_path / "left.jpg").write_bytes(b"fake image data " * 100)
-        uuid = temp_catalog.add_item("Image", str(item_path))
+        (item_path / "map.pcd").write_bytes(b"fake scan data " * 150)
+        uuid = temp_catalog.add_item("Scan", str(item_path))
         items.append(uuid)
 
-    # Create 2 video items
-    for i in range(2):
-        item_path = tmp_path / f"video_{i}"
-        item_path.mkdir(parents=True, exist_ok=True)
-        (item_path / "front.mp4").write_bytes(b"fake video data " * 200)
-        uuid = temp_catalog.add_item("Video", str(item_path))
-        items.append(uuid)
+        # Wait for catalog to flush
+        temp_catalog._dirty.wait(timeout=2)
 
-    # Create 1 scan item
-    item_path = tmp_path / "scan_0"
-    item_path.mkdir(parents=True, exist_ok=True)
-    (item_path / "map.pcd").write_bytes(b"fake scan data " * 150)
-    uuid = temp_catalog.add_item("Scan", str(item_path))
-    items.append(uuid)
+        # Get catalog
+        response = await async_client.get("/catalog")
 
-    # Wait for catalog to flush
-    temp_catalog._dirty.wait(timeout=2)
+        assert response.status_code == 200
+        data = response.json()
 
-    # Get catalog
-    response = await async_client.get("/catalog")
+        # Verify structure
+        assert "items" in data
+        assert "storage_stats" in data
+        assert "c_time" in data
+        assert "m_time" in data
 
-    assert response.status_code == 200
-    data = response.json()
+        # Verify 5 items
+        assert len(data["items"]) == 5
 
-    # Verify structure
-    assert "items" in data
-    assert "storage_stats" in data
-    assert "c_time" in data
-    assert "m_time" in data
+        # Verify all items have required fields
+        for uuid in items:
+            assert uuid in data["items"]
+            item = data["items"][uuid]
+            assert "name" in item
+            assert "type" in item
+            assert "url" in item
+            assert "date" in item
+            assert "size_on_disk" in item
+            assert "size" in item
 
-    # Verify 5 items
-    assert len(data["items"]) == 5
+        # Verify storage stats structure
+        assert "Photos" in data["storage_stats"]
+        assert "Videos" in data["storage_stats"]
+        assert "Scans" in data["storage_stats"]
 
-    # Verify all items have required fields
-    for uuid in items:
-        assert uuid in data["items"]
-        item = data["items"][uuid]
-        assert "name" in item
-        assert "type" in item
-        assert "url" in item
-        assert "date" in item
-        assert "size_on_disk" in item
-        assert "size" in item
-
-    # Verify storage stats structure
-    assert "Photos" in data["storage_stats"]
-    assert "Videos" in data["storage_stats"]
-    assert "Scans" in data["storage_stats"]
-
-    # Verify storage stats are positive (items were added)
-    assert data["storage_stats"]["Photos"] > 0
-    assert data["storage_stats"]["Videos"] > 0
-    assert data["storage_stats"]["Scans"] > 0
+        # Verify storage stats are positive (items were added)
+        assert data["storage_stats"]["Photos"] > 0
+        assert data["storage_stats"]["Videos"] > 0
+        assert data["storage_stats"]["Scans"] > 0
 
 
 @pytest.mark.asyncio

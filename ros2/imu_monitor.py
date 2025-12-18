@@ -1,7 +1,17 @@
-from typing import Optional
+"""
+IMU Monitor Node for detecting sensor stabilization.
+
+Uses moving standard deviation (mstd) over a 1-second window to detect
+when the IMU is stable. This method provides better separation between
+static and moving states compared to back-to-back sample comparison.
+"""
+
+from typing import Optional, Deque
+from collections import deque
 import time
 import argparse
 import os
+import math
 from pathlib import Path
 
 import rclpy
@@ -9,32 +19,47 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Imu
 
+
 class IMUMonitorNode(Node):
     """
     ROS2 node for monitoring IMU data and stabilization.
-    Trigger a callback when IMU data has been stable for a specified duration.
+    Uses moving standard deviation to detect when IMU is stable.
     """
 
-    def __init__(self, imu_topic: str, track_duration: float, result_path: str):
+    def __init__(self, imu_topic: str, track_duration: float, result_path: str,
+                 window_duration: float = 1.0,
+                 accel_mstd_threshold: float = 0.3,
+                 gyro_mstd_threshold: float = 0.05):
         super().__init__('imu_monitor')
 
-        # Stabilization tracking variables
-        self.previous_imu_data: Optional[Imu] = None
-        self.tracking_start_time: Optional[float] = None
+        # Configuration
         self.track_duration = track_duration
         self.result_path = result_path
-        
+        self.window_duration = window_duration  # 1-second moving window
+
+        # Thresholds for moving standard deviation
+        self.accel_mstd_threshold = accel_mstd_threshold  # m/s^2
+        self.gyro_mstd_threshold = gyro_mstd_threshold    # rad/s
+
+        # Data buffers for moving window (stores tuples of (timestamp, value))
+        self.accel_x_buffer: Deque[tuple] = deque()
+        self.accel_y_buffer: Deque[tuple] = deque()
+        self.accel_z_buffer: Deque[tuple] = deque()
+        self.gyro_x_buffer: Deque[tuple] = deque()
+        self.gyro_y_buffer: Deque[tuple] = deque()
+        self.gyro_z_buffer: Deque[tuple] = deque()
+
+        # Stabilization tracking
+        self.tracking_start_time: Optional[float] = None
+        self.is_first_message = True
+
         # Ensure result directory exists
         result_dir = os.path.dirname(self.result_path)
         if result_dir:
             Path(result_dir).mkdir(parents=True, exist_ok=True)
-        # delete old result file if exists
+        # Delete old result file if exists
         if os.path.exists(self.result_path):
             os.remove(self.result_path)
-
-        # Thresholds for stability detection
-        self.accel_threshold = 0.1  # m/s^2 - threshold for acceleration fluctuation
-        self.gyro_threshold = 0.05  # rad/s - threshold for angular velocity fluctuation
 
         # QoS profile for IMU topic (sensor data typically uses BEST_EFFORT)
         qos_profile = QoSProfile(
@@ -54,66 +79,94 @@ class IMUMonitorNode(Node):
     def imu_callback(self, msg: Imu):
         """Callback for IMU messages."""
         current_time = time.time()
-        
-        # Check stability if we have previous data
-        if self.previous_imu_data is None:
+
+        if self.is_first_message:
             self.get_logger().info("IMU stabilization tracking started")
             self._write_status("TRACKING")
-        else:
-            is_within_threshold = self._check_fluctuation_threshold(self.previous_imu_data, msg)
-            
-            if is_within_threshold:
-                if self.tracking_start_time is None:
-                    # Start tracking
-                    self.tracking_start_time = current_time
-                elif current_time - self.tracking_start_time >= self.track_duration:
-                    self.stabilized = True
-                    self._write_status("STABILIZED")
-                    self.get_logger().info("IMU stabilized, bye!")
-                    rclpy.shutdown()
-            else:
-                # reset
-                self.tracking_start_time = None
-        
-        # Store current reading as previous for next comparison
-        self.previous_imu_data = msg
+            self.is_first_message = False
 
-    def _check_fluctuation_threshold(self, prev_msg: Imu, curr_msg: Imu) -> bool:
+        # Add current readings to buffers
+        self._add_to_buffer(self.accel_x_buffer, current_time, msg.linear_acceleration.x)
+        self._add_to_buffer(self.accel_y_buffer, current_time, msg.linear_acceleration.y)
+        self._add_to_buffer(self.accel_z_buffer, current_time, msg.linear_acceleration.z)
+        self._add_to_buffer(self.gyro_x_buffer, current_time, msg.angular_velocity.x)
+        self._add_to_buffer(self.gyro_y_buffer, current_time, msg.angular_velocity.y)
+        self._add_to_buffer(self.gyro_z_buffer, current_time, msg.angular_velocity.z)
+
+        # Prune old data from buffers
+        self._prune_buffer(self.accel_x_buffer, current_time)
+        self._prune_buffer(self.accel_y_buffer, current_time)
+        self._prune_buffer(self.accel_z_buffer, current_time)
+        self._prune_buffer(self.gyro_x_buffer, current_time)
+        self._prune_buffer(self.gyro_y_buffer, current_time)
+        self._prune_buffer(self.gyro_z_buffer, current_time)
+
+        # Need enough data for meaningful std calculation (at least 10 samples)
+        if len(self.accel_x_buffer) < 10:
+            return
+
+        # Calculate moving standard deviations
+        accel_mstd = max(
+            self._calculate_std(self.accel_x_buffer),
+            self._calculate_std(self.accel_y_buffer),
+            self._calculate_std(self.accel_z_buffer)
+        )
+        gyro_mstd = max(
+            self._calculate_std(self.gyro_x_buffer),
+            self._calculate_std(self.gyro_y_buffer),
+            self._calculate_std(self.gyro_z_buffer)
+        )
+
+        # Check if within thresholds
+        is_stable = (accel_mstd <= self.accel_mstd_threshold and
+                     gyro_mstd <= self.gyro_mstd_threshold)
+
+        if is_stable:
+            if self.tracking_start_time is None:
+                # Start tracking stable duration
+                self.tracking_start_time = current_time
+            elif current_time - self.tracking_start_time >= self.track_duration:
+                # Stable for required duration
+                self._write_status("STABILIZED")
+                self.get_logger().info("IMU stabilized, bye!")
+                rclpy.shutdown()
+        else:
+            # Reset tracking if not stable
+            self.tracking_start_time = None
+
+    def _add_to_buffer(self, buffer: Deque, timestamp: float, value: float):
+        """Add a timestamped value to the buffer."""
+        buffer.append((timestamp, value))
+
+    def _prune_buffer(self, buffer: Deque, current_time: float):
+        """Remove data older than window_duration from the buffer."""
+        cutoff_time = current_time - self.window_duration
+        while buffer and buffer[0][0] < cutoff_time:
+            buffer.popleft()
+
+    def _calculate_std(self, buffer: Deque) -> float:
         """
-        Check if fluctuation between two IMU readings is within threshold.
-        
+        Calculate standard deviation of values in the buffer.
+
         Args:
-            prev_msg: Previous IMU message
-            curr_msg: Current IMU message
-            
+            buffer: Deque of (timestamp, value) tuples
+
         Returns:
-            True if fluctuation is within threshold, False otherwise
+            Standard deviation of values, or 0.0 if buffer is empty
         """
-        # Calculate acceleration magnitude differences
-        accel_diff_x = abs(curr_msg.linear_acceleration.x - prev_msg.linear_acceleration.x)
-        accel_diff_y = abs(curr_msg.linear_acceleration.y - prev_msg.linear_acceleration.y)
-        accel_diff_z = abs(curr_msg.linear_acceleration.z - prev_msg.linear_acceleration.z)
-        
-        # Calculate gyroscope magnitude differences  
-        gyro_diff_x = abs(curr_msg.angular_velocity.x - prev_msg.angular_velocity.x)
-        gyro_diff_y = abs(curr_msg.angular_velocity.y - prev_msg.angular_velocity.y)
-        gyro_diff_z = abs(curr_msg.angular_velocity.z - prev_msg.angular_velocity.z)
-        
-        # Check if all differences are within thresholds
-        accel_stable = (accel_diff_x <= self.accel_threshold and 
-                       accel_diff_y <= self.accel_threshold and 
-                       accel_diff_z <= self.accel_threshold)
-        
-        gyro_stable = (gyro_diff_x <= self.gyro_threshold and 
-                      gyro_diff_y <= self.gyro_threshold and 
-                      gyro_diff_z <= self.gyro_threshold)
-        
-        return accel_stable and gyro_stable
+        if len(buffer) < 2:
+            return 0.0
+
+        values = [v for _, v in buffer]
+        n = len(values)
+        mean = sum(values) / n
+        variance = sum((x - mean) ** 2 for x in values) / n
+        return math.sqrt(variance)
 
     def _write_status(self, status: str):
         """
         Write the current status to the result file.
-        
+
         Args:
             status: Status string to write ("TRACKING" or "STABILIZED")
         """
@@ -125,6 +178,7 @@ class IMUMonitorNode(Node):
 
 
 def main(args=None):
+    """Main entry point for the IMU monitor node."""
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='IMU Monitor Node')
     parser.add_argument('--imu-topic', type=str, default='/livox/imu',
@@ -133,15 +187,24 @@ def main(args=None):
                         help='Duration in seconds to track stability (default: 10.0)')
     parser.add_argument('--result-path', type=str, required=True,
                         help='Path to write the stabilization result (TRACKING/STABILIZED)')
-    
+    parser.add_argument('--window-duration', type=float, default=1.0,
+                        help='Moving window duration in seconds (default: 1.0)')
+    parser.add_argument('--accel-threshold', type=float, default=0.3,
+                        help='Accelerometer mstd threshold in m/s^2 (default: 0.3)')
+    parser.add_argument('--gyro-threshold', type=float, default=0.05,
+                        help='Gyroscope mstd threshold in rad/s (default: 0.05)')
+
     parsed_args = parser.parse_args(args)
-    
+
     rclpy.init()
 
     imu_node = IMUMonitorNode(
         imu_topic=parsed_args.imu_topic,
         track_duration=parsed_args.track_duration,
-        result_path=parsed_args.result_path
+        result_path=parsed_args.result_path,
+        window_duration=parsed_args.window_duration,
+        accel_mstd_threshold=parsed_args.accel_threshold,
+        gyro_mstd_threshold=parsed_args.gyro_threshold
     )
 
     try:

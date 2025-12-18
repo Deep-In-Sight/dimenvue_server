@@ -618,7 +618,7 @@ webcam: {
         record_format = self._get_setting_value("record_format").lower()
 
         files = {
-            sensor_name: f"{self.media_path}/{sensor_name}.{record_format}" for sensor_name in self.SENSORNAME_MAP.values()
+            sensor_name: f"{self.record_tmp_path}/{sensor_name}.{record_format}" for sensor_name in self.SENSORNAME_MAP.values()
         }
 
         gen_thumbnail_factory(files['front'])

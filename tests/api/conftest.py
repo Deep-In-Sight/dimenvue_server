@@ -56,8 +56,9 @@ import pytest_asyncio
 from fastapi.testclient import TestClient
 from httpx import AsyncClient, ASGITransport
 
-# Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add server directory to path for imports
+# tests/api/conftest.py -> tests/api -> tests -> dimenvue_server
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 # ==================== App & Client Fixtures ====================
@@ -461,7 +462,7 @@ DATA ascii
 def pytest_configure(config):
     """Register custom markers."""
     config.addinivalue_line("markers", "integration: Integration tests")
-    config.addinivalue_line("markers", "e2e: End-to-end tests")
+    config.addinivalue_line("markers", "ee: End-to-end tests")
     config.addinivalue_line("markers", "hardware: Tests requiring hardware")
     config.addinivalue_line("markers", "ros2: Tests requiring ROS2")
     config.addinivalue_line("markers", "slow: Slow running tests")

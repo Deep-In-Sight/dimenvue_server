@@ -6,36 +6,27 @@ Provides functions to start/stop all ROS2 nodes and check initialization status.
 
 import os
 import asyncio
-import threading
+import subprocess
+import signal
 from pathlib import Path
 from typing import Optional
 
-from launch import LaunchService
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.actions import IncludeLaunchDescription
 
-
-# Global launch service instance
-_launch_service: Optional[LaunchService] = None
-_launch_thread: Optional[threading.Thread] = None
+# Global process instance
+_launch_process: Optional[subprocess.Popen] = None
 _artifact_dir: str = ""
 
 
-def _run_launch_service(launch_service: LaunchService):
-    """Run the launch service in a separate thread."""
-    launch_service.run()
-
-
-async def StartEverything(file_format: str, artifact_dir: str):
+async def StartEverything(file_format: str, artifact_dir: str, bag_path: str = "/shared_data/test_bag"):
     """
-    Create a launch service and start all nodes using the top-level launch description.
-    Start asynchronously, returning immediately.
+    Start all ROS2 nodes using ros2 launch subprocess.
 
     Args:
         file_format: Output file format (PLY, PCD, LAS, LAZ)
         artifact_dir: Directory to store all mapping artifacts
+        bag_path: Path to the rosbag for development mode playback
     """
-    global _launch_service, _launch_thread, _artifact_dir
+    global _launch_process, _artifact_dir
 
     # Store artifact_dir for GetInitStatus
     _artifact_dir = artifact_dir
@@ -47,35 +38,24 @@ async def StartEverything(file_format: str, artifact_dir: str):
     current_dir = Path(__file__).parent.absolute()
     launch_file_path = str(current_dir / 'toplevel.launch.py')
 
-    # Create launch service
-    _launch_service = LaunchService()
+    # Build the ros2 launch command
+    cmd = [
+        'ros2', 'launch',
+        launch_file_path,
+        f'file_format:={file_format}',
+        f'artifact_dir:={artifact_dir}',
+        f'bag_path:={bag_path}',
+        'development_mode:=true'  # TODO: Make this configurable via settings
+    ]
 
-    # Create launch description with arguments
-    # Note: For now, we default to development_mode=true
-    # You may want to add a parameter or setting to control this
-    launch_description_source = PythonLaunchDescriptionSource(launch_file_path)
-
-    include_launch = IncludeLaunchDescription(
-        launch_description_source,
-        launch_arguments={
-            'file_format': file_format,
-            'artifact_dir': artifact_dir,
-            'development_mode': 'true'  # TODO: Make this configurable via settings
-        }.items()
+    # Start the launch process
+    # Don't capture stdout/stderr - let it flow to console to avoid blocking
+    _launch_process = subprocess.Popen(
+        cmd,
+        stdout=None,  # Inherit from parent (shows in console)
+        stderr=None,  # Inherit from parent
+        preexec_fn=os.setsid  # Create new process group for clean shutdown
     )
-
-    # Include the launch description
-    _launch_service.include_launch_description(
-        include_launch.visit(None)
-    )
-
-    # Start the launch service in a background thread
-    _launch_thread = threading.Thread(
-        target=_run_launch_service,
-        args=(_launch_service,),
-        daemon=True
-    )
-    _launch_thread.start()
 
     # Give it a moment to start
     await asyncio.sleep(0.5)
@@ -83,21 +63,31 @@ async def StartEverything(file_format: str, artifact_dir: str):
 
 async def StopEverything():
     """
-    Shutdown the launch service and all running nodes.
+    Shutdown all running ROS2 nodes.
     """
-    global _launch_service, _launch_thread
+    global _launch_process
 
-    if _launch_service is not None:
-        # Request shutdown
-        await asyncio.to_thread(_launch_service.shutdown)
+    if _launch_process is not None:
+        try:
+            # Send SIGINT to the process group (like Ctrl+C)
+            os.killpg(os.getpgid(_launch_process.pid), signal.SIGINT)
 
-        # Wait for the thread to finish (with timeout)
-        if _launch_thread is not None and _launch_thread.is_alive():
-            _launch_thread.join(timeout=5.0)
+            # Wait for graceful shutdown with timeout
+            try:
+                await asyncio.wait_for(
+                    asyncio.to_thread(_launch_process.wait),
+                    timeout=10.0
+                )
+            except asyncio.TimeoutError:
+                # Force kill if graceful shutdown fails
+                os.killpg(os.getpgid(_launch_process.pid), signal.SIGKILL)
+                await asyncio.to_thread(_launch_process.wait)
 
-        # Reset global state
-        _launch_service = None
-        _launch_thread = None
+        except ProcessLookupError:
+            # Process already terminated
+            pass
+        finally:
+            _launch_process = None
 
 
 def GetInitStatus() -> str:

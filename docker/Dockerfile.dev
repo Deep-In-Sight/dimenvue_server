@@ -171,6 +171,11 @@ RUN git clone https://github.com/Deep-In-Sight/dimenvue_server.git && \
 # Reset working directory
 WORKDIR /
 
+# fast-lio deps
+RUN apt-get update && apt-get install -y \                                                                   
+      libunwind-dev \                                                                                          
+      && rm -rf /var/lib/apt/lists/*
+
 # Install gosu for proper user switching
 RUN apt-get update && \
     apt-get install -y gosu && \

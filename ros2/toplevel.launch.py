@@ -42,10 +42,17 @@ def generate_launch_description():
         description='Directory to store all mapping artifacts'
     )
 
+    bag_path_arg = DeclareLaunchArgument(
+        'bag_path',
+        default_value='/shared_data/test_bag',
+        description='Path to rosbag for development mode playback'
+    )
+
     # Launch configurations
     development_mode = LaunchConfiguration('development_mode')
     file_format = LaunchConfiguration('file_format')
     artifact_dir = LaunchConfiguration('artifact_dir')
+    bag_path = LaunchConfiguration('bag_path')
 
     # Get package paths
     fast_lio_share = get_package_share_directory('fast_lio')
@@ -56,25 +63,29 @@ def generate_launch_description():
     imu_monitor_script = str(current_dir / 'imu_monitor.py')
 
     # 1. Fast-LIO node
-    fast_lio_node = Node(
-        package='fast_lio',
-        executable='fastlio_mapping',
+    # Use ExecuteProcess to set working directory (fast_lio writes laserMapping_node.log to cwd)
+    # Remap topics to match ouster sensor topics
+    fast_lio_node = ExecuteProcess(
+        cmd=[
+            'ros2', 'run', 'fast_lio', 'fastlio_mapping',
+            '--ros-args',
+            '--params-file', fast_lio_config,
+            '-r', '/lidar:=/ouster/points',
+            '-r', '/imu/data:=/ouster/imu'
+        ],
         name='fastlio_mapping',
         output='screen',
-        parameters=[fast_lio_config]
+        cwd='/tmp'  # Write log file to /tmp to avoid permission issues
     )
 
     # 2. IMU Monitor node (as ExecuteProcess for command-line args)
-    imu_topic_expr = PythonExpression([
-        '"', '/imu/data', '" if "', development_mode, '" == "true" else "', '/ouster/imu', '"'
-    ])
-
+    # Both development and production mode use /ouster/imu for test_bag
     imu_monitor_node = ExecuteProcess(
         cmd=[
             'python3',
             imu_monitor_script,
-            '--imu-topic', imu_topic_expr,
-            '--track-duration', '10.0',
+            '--imu-topic', '/ouster/imu',
+            '--track-duration', '5.0',
             '--result-path', [artifact_dir, '/imu_stabilization_status.txt']
         ],
         name='imu_monitor',
@@ -83,7 +94,7 @@ def generate_launch_description():
 
     # 3. Point Cloud Bridge node
     bridge_node = Node(
-        package='point_cloud_bridge',
+        package='pointcloud_bridge',
         executable='bridge_node',
         name='bridge_node',
         output='screen',
@@ -95,8 +106,10 @@ def generate_launch_description():
     )
 
     # 4. Point Cloud Recorder node
+    # Note: file_format must be lowercase (ply, pcd, las, laz)
+    file_format_lower = PythonExpression(["'", file_format, "'.lower()"])
     recorder_node = Node(
-        package='point_cloud_bridge',
+        package='pointcloud_bridge',
         executable='recorder_node',
         name='recorder_node',
         output='screen',
@@ -105,57 +118,28 @@ def generate_launch_description():
             'pose_topic': '/Odometry',
             'pose_type': 0,
             'artifact_dir': artifact_dir,
-            'file_format': file_format
+            'file_format': file_format_lower
         }]
     )
 
     # 5. Raw data recorder (ros2 bag record)
-    # Build topic list based on mode
-    bag_topics_dev = [
-        '/os1_cloud_node/points',
-        '/imu/data',
-        '/Odometry'
-    ]
-
-    bag_topics_prod = [
-        '/os1_cloud_node/points',
-        '/ouster/imu',
-        '/Odometry'
-    ]
-
-    # Development mode bag recorder
-    bag_recorder_dev = ExecuteProcess(
+    # Using ouster topics for test_bag
+    bag_recorder = ExecuteProcess(
         cmd=[
             'ros2', 'bag', 'record',
             '-o', [artifact_dir, '/sensor_raw'],
-            '/os1_cloud_node/points',
-            '/imu/data',
-            '/Odometry'
+            '/ouster/points',
+            '/ouster/imu'
         ],
         name='bag_recorder',
-        output='screen',
-        condition=IfCondition(development_mode)
-    )
-
-    # Production mode bag recorder
-    bag_recorder_prod = ExecuteProcess(
-        cmd=[
-            'ros2', 'bag', 'record',
-            '-o', [artifact_dir, '/sensor_raw'],
-            '/os1_cloud_node/points',
-            '/ouster/imu',
-            '/Odometry'
-        ],
-        name='bag_recorder',
-        output='screen',
-        condition=UnlessCondition(development_mode)
+        output='screen'
     )
 
     # 6. Rosbag playback (development mode only)
     bag_playback_node = ExecuteProcess(
         cmd=[
             'ros2', 'bag', 'play',
-            '/shared_data/office_sim_bag/',
+            bag_path,
             '--delay', '2'
         ],
         name='bag_playback',
@@ -179,16 +163,16 @@ def generate_launch_description():
         development_mode_arg,
         file_format_arg,
         artifact_dir_arg,
+        bag_path_arg,
 
         # Core nodes (always running)
         fast_lio_node,
         imu_monitor_node,
         bridge_node,
         recorder_node,
+        bag_recorder,
 
         # Conditional nodes based on mode
-        bag_recorder_dev,
-        bag_recorder_prod,
         bag_playback_node,
         ouster_driver_node
     ])

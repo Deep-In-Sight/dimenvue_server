@@ -82,18 +82,104 @@ class MappingApp:
         """Return current settings."""
         return self.active_settings
 
+    def _validate_settings(self, settings: dict) -> tuple[dict, list]:
+        """Validate and sanitize settings.
+
+        Handles two formats:
+        1. Full format: {"key": {"options": [...], "current_selection": N}}
+        2. Flat format: {"key": value} - value matched against current options
+
+        Returns:
+            tuple: (validated_settings, list of invalid keys)
+        """
+        validated = {}
+        invalid_keys = []
+
+        for key, value in settings.items():
+            # Check if this is a known setting
+            if key not in self.settings:
+                invalid_keys.append(key)
+                continue
+
+            current_setting = self.settings[key]
+
+            if isinstance(value, dict):
+                # Full format: {"options": [...], "current_selection": N}
+                if "options" in value and "current_selection" in value:
+                    options = value["options"]
+                    selection = value["current_selection"]
+                    if not isinstance(selection, int) or selection < 0 or selection >= len(options):
+                        selection = 0  # Reset to default if invalid
+                    validated[key] = {
+                        "options": options,
+                        "current_selection": selection
+                    }
+                elif "range" in value and "current_selection" in value:
+                    range_vals = value["range"]
+                    selection = value["current_selection"]
+                    if not isinstance(selection, (int, float)):
+                        selection = range_vals[0]
+                    selection = max(range_vals[0], min(range_vals[1], selection))
+                    validated[key] = {
+                        "range": range_vals,
+                        "current_selection": selection
+                    }
+                else:
+                    validated[key] = value
+            else:
+                # Flat format: value to match against options
+                if "options" in current_setting:
+                    options = current_setting["options"]
+                    if value in options:
+                        # Valid value - find its index
+                        validated[key] = {
+                            "options": options,
+                            "current_selection": options.index(value)
+                        }
+                    else:
+                        # Invalid value - mark as invalid, keep current setting
+                        invalid_keys.append(key)
+                        validated[key] = current_setting.copy()
+                elif "range" in current_setting:
+                    range_vals = current_setting["range"]
+                    if isinstance(value, (int, float)) and range_vals[0] <= value <= range_vals[1]:
+                        validated[key] = {
+                            "range": range_vals,
+                            "current_selection": value
+                        }
+                    else:
+                        invalid_keys.append(key)
+                        validated[key] = current_setting.copy()
+                else:
+                    validated[key] = value
+
+        # Preserve settings not in the update
+        for key in self.settings:
+            if key not in validated:
+                validated[key] = self.settings[key].copy() if isinstance(self.settings[key], dict) else self.settings[key]
+
+        return validated, invalid_keys
+
     def save_settings(self, new_settings: dict):
         """Update and save settings.
 
         When idle, active_settings is also updated immediately.
         When mapping is running, active_settings updates after stop.
+
+        Raises:
+            ValueError: If any settings have invalid values (still updates valid ones)
         """
-        self.settings = new_settings
+        validated, invalid_keys = self._validate_settings(new_settings)
+        self.settings = validated
         self._save_settings()
 
         # When idle, sync active_settings immediately
         if self.state == MappingState.IDLE:
             self.active_settings = self.settings.copy()
+
+        # Raise error if there were invalid values
+        if invalid_keys:
+            raise ValueError(f"Invalid settings: {', '.join(invalid_keys)}")
 
         return self.settings
 
@@ -169,7 +255,7 @@ class MappingApp:
         await StopEverything()
 
         # Run finalization script
-        file_format = self._get_setting_value("file_format")
+        file_format = self._get_setting_value("file_format").lower()
 
         await asyncio.to_thread(do_finalize, self.artifact_dir, file_format)
 

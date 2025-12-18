@@ -237,7 +237,10 @@ def get_mapping_settings():
 @app.put("/mappingApp/settings")
 def put_mapping_settings(req: dict[str, Any]):
     new_settings = req.get("settings", req)
-    return mappingApp.save_settings(new_settings)
+    try:
+        return mappingApp.save_settings(new_settings)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/storage/internal/usage")

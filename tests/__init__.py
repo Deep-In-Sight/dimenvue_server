@@ -1,5 +1,5 @@
 """
-DimenvuePro Server Integration & E2E Tests
+DimenvuePro Server Integration & EE Tests
 
 Test modules:
 - test_camera_api.py: Camera initialization, capture, recording, settings
@@ -7,7 +7,7 @@ Test modules:
 - test_catalog_api.py: Catalog CRUD operations, metadata, export
 - test_storage_api.py: Internal/external storage management
 - test_export_api.py: Export queue management, progress tracking
-- test_e2e.py: End-to-end workflow tests
+- test_ee.py: End-to-end workflow tests
 - test_performance.py: Load and performance tests
 
 Usage:
@@ -19,7 +19,7 @@ Usage:
 
     # Run with markers
     pytest -m "integration"
-    pytest -m "e2e"
+    pytest -m "ee"
     pytest -m "not slow"
     pytest -m "not ros2"
 

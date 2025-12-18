@@ -125,7 +125,9 @@ class Catalog:
         item_name = self._get_new_item_name()
         item_uuid = str(uuid4())
         item_disk_path = os.path.join(self.data_path, item_name)
-        os.makedirs(item_disk_path, exist_ok=True)
+        # Ensure parent directory exists, but NOT item_disk_path itself
+        # so shutil.move renames content_path to item_disk_path
+        # os.makedirs(self.data_path, exist_ok=True)
 
         shutil.move(content_path, item_disk_path)
 

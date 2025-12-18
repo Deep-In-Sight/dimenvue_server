@@ -1,9 +1,9 @@
-# DimenvuePro Server - Integration & E2E Test Specifications
+# DimenvuePro Server - Integration & EE Test Specifications
 
 ## Overview
 This document specifies integration tests and end-to-end tests for the DimenvuePro spatial scanner server. Each test follows the **Given-Action-Expects** format.
 
-**Scope:** Integration tests verify API endpoints and service layer interactions. E2E tests validate complete workflows from user action to final result.
+**Scope:** Integration tests verify API endpoints and service layer interactions. EE tests validate complete workflows from user action to final result.
 
 ---
 
@@ -13,7 +13,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Camera Init Success
 - **Test ID:** `CAM-INIT-001`
-- **Implementation:** [test_camera_init_success](./tests/test_camera_api.py#L19)
+- **Implementation:** [test_camera_init_success](api/test_camera_api.py#L21)
 - **Given:** Camera app is not initialized
 - **Action:** `PUT /cameraApp/init`
 - **Expects:**
@@ -26,7 +26,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Camera Init Idempotency
 - **Test ID:** `CAM-INIT-002`
-- **Implementation:** [test_camera_init_idempotency](./tests/test_camera_api.py#L35)
+- **Implementation:** [test_camera_init_idempotency](api/test_camera_api.py#L37)
 - **Given:** Camera app is already initialized
 - **Action:** `PUT /cameraApp/init`
 - **Expects:**
@@ -36,7 +36,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Camera Deinit
 - **Test ID:** `CAM-INIT-003`
-- **Implementation:** [test_camera_deinit](./tests/test_camera_api.py#L50)
+- **Implementation:** [test_camera_deinit](api/test_camera_api.py#L52)
 - **Given:** Camera app is initialized
 - **Action:** `PUT /cameraApp/deinit`
 - **Expects:**
@@ -47,7 +47,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Deinit Idempotency
 - **Test ID:** `CAM-INIT-004`
-- **Implementation:** [test_deinit_idempotency](./tests/test_camera_api.py#L64)
+- **Implementation:** [test_deinit_idempotency](api/test_camera_api.py#L66)
 - **Given:** Camera app is already deinitialized (idle state)
 - **Action:** `PUT /cameraApp/deinit`
 - **Expects:**
@@ -57,7 +57,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Get Camera State
 - **Test ID:** `CAM-INIT-005`
-- **Implementation:** [test_get_camera_state](./tests/test_camera_api.py#L80)
+- **Implementation:** [test_get_camera_state](api/test_camera_api.py#L82)
 - **Given:** Camera is in various states (idle, ready, initializing, error)
 - **Action:** `GET /cameraApp/state`
 - **Expects:**
@@ -69,7 +69,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Concurrent Init Requests
 - **Test ID:** `CAM-INIT-006`
-- **Implementation:** [test_concurrent_init_requests](./tests/test_camera_api.py#L91)
+- **Implementation:** [test_concurrent_init_requests](api/test_camera_api.py#L93)
 - **Given:** Camera is idle
 - **Action:** Send 3 concurrent `PUT /cameraApp/init` requests
 - **Expects:**
@@ -83,7 +83,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Init During Deinit
 - **Test ID:** `CAM-INIT-007`
-- **Implementation:** [test_init_during_deinit](./tests/test_camera_api.py#L113)
+- **Implementation:** [test_init_during_deinit](api/test_camera_api.py#L115)
 - **Given:**
   - Camera is initialized (ready state)
   - Deinit operation is in progress
@@ -96,7 +96,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Deinit During Init
 - **Test ID:** `CAM-INIT-008`
-- **Implementation:** [test_deinit_during_init](./tests/test_camera_api.py#L143)
+- **Implementation:** [test_deinit_during_init](api/test_camera_api.py#L145)
 - **Given:**
   - Camera is idle
   - Init operation is in progress
@@ -109,7 +109,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Multiple Concurrent Deinit Requests
 - **Test ID:** `CAM-INIT-009`
-- **Implementation:** [test_multiple_concurrent_deinit_requests](./tests/test_camera_api.py#L170)
+- **Implementation:** [test_multiple_concurrent_deinit_requests](api/test_camera_api.py#L172)
 - **Given:** Camera is ready (initialized)
 - **Action:** Send 3 concurrent `PUT /cameraApp/deinit` requests
 - **Expects:**
@@ -123,7 +123,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Get State During Init
 - **Test ID:** `CAM-INIT-010`
-- **Implementation:** [test_get_state_during_init](./tests/test_camera_api.py#L195)
+- **Implementation:** [test_get_state_during_init](api/test_camera_api.py#L197)
 - **Given:** Init in progress (between request start and completion)
 - **Action:** `GET /cameraApp/state`
 - **Expects:**
@@ -132,7 +132,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Get State During Deinit
 - **Test ID:** `CAM-INIT-011`
-- **Implementation:** [test_get_state_during_deinit](./tests/test_camera_api.py#L222)
+- **Implementation:** [test_get_state_during_deinit](api/test_camera_api.py#L224)
 - **Given:** Deinit in progress
 - **Action:** `GET /cameraApp/state`
 - **Expects:**
@@ -141,7 +141,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Rapid Init/Deinit Cycle
 - **Test ID:** `CAM-INIT-012`
-- **Implementation:** [test_rapid_init_deinit_cycle](./tests/test_camera_api.py#L252)
+- **Implementation:** [test_rapid_init_deinit_cycle](api/test_camera_api.py#L254)
 - **Given:** Camera is idle
 - **Action:**
   1. `PUT /cameraApp/init` (wait for completion)
@@ -160,7 +160,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Single Frame Capture
 - **Test ID:** `CAM-CAP-001`
-- **Implementation:** [test_single_frame_capture](./tests/test_camera_api.py#L277)
+- **Implementation:** [test_single_frame_capture](api/test_camera_api.py#L279)
 - **Given:**
   - Camera app is initialized
   - Output directory exists
@@ -174,7 +174,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Capture Without Init
 - **Test ID:** `CAM-CAP-002`
-- **Implementation:** [test_capture_without_init](./tests/test_camera_api.py#L298)
+- **Implementation:** [test_capture_without_init](api/test_camera_api.py#L306)
 - **Given:** Camera app is NOT initialized
 - **Action:** `PUT /cameraApp/capture`
 - **Expects:**
@@ -184,7 +184,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Multiple Sequential Captures (back to back, when previous FINISH)
 - **Test ID:** `CAM-CAP-003`
-- **Implementation:** [test_multiple_sequential_captures](./tests/test_camera_api.py#L309)
+- **Implementation:** [test_multiple_sequential_captures](api/test_camera_api.py#L317)
 - **Given:** Camera app is initialized
 - **Action:**
   1. `PUT /cameraApp/capture`, then
@@ -202,7 +202,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Start Recording
 - **Test ID:** `CAM-REC-001`
-- **Implementation:** [test_start_recording](./tests/test_camera_api.py#L339)
+- **Implementation:** [test_start_recording](api/test_camera_api.py#L354)
 - **Given:**
   - Camera app is initialized
   - No recording in progress
@@ -214,7 +214,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Stop Recording
 - **Test ID:** `CAM-REC-002`
-- **Implementation:** [test_stop_recording](./tests/test_camera_api.py#L359)
+- **Implementation:** [test_stop_recording](api/test_camera_api.py#L374)
 - **Given:** Recording is in progress for at least 3 seconds
 - **Action:** `PUT /cameraApp/recordStop`
 - **Expects:**
@@ -226,7 +226,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Record Start Without Init
 - **Test ID:** `CAM-REC-003`
-- **Implementation:** [test_record_start_without_init](./tests/test_camera_api.py#L389)
+- **Implementation:** [test_record_start_without_init](api/test_camera_api.py#L411)
 - **Given:** Camera app is NOT initialized
 - **Action:** `PUT /cameraApp/recordStart`
 - **Expects:**
@@ -236,7 +236,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Duplicate Record Start
 - **Test ID:** `CAM-REC-004`
-- **Implementation:** [test_duplicate_record_start](./tests/test_camera_api.py#L400)
+- **Implementation:** [test_duplicate_record_start](api/test_camera_api.py#L422)
 - **Given:** Recording is already in progress
 - **Action:** `PUT /cameraApp/recordStart`
 - **Expects:**
@@ -246,7 +246,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Record Stop Without Start
 - **Test ID:** `CAM-REC-005`
-- **Implementation:** [test_record_stop_without_start](./tests/test_camera_api.py#L419)
+- **Implementation:** [test_record_stop_without_start](api/test_camera_api.py#L441)
 - **Given:** No recording in progress
 - **Action:** `PUT /cameraApp/recordStop`
 - **Expects:**
@@ -259,7 +259,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Switch Preview Index
 - **Test ID:** `CAM-PREV-001`
-- **Implementation:** [test_switch_preview_index](./tests/test_camera_api.py#L434)
+- **Implementation:** [test_switch_preview_index](api/test_camera_api.py#L456)
 - **Given:**
   - Camera app is initialized
   - Current preview index is 0 (left camera)
@@ -270,7 +270,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Get Preview Index
 - **Test ID:** `CAM-PREV-002`
-- **Implementation:** [test_get_preview_index](./tests/test_camera_api.py#L454)
+- **Implementation:** [test_get_preview_index](api/test_camera_api.py#L476)
 - **Given:**
   - Camera app is initialized
   - Current preview index is 0 (left camera)
@@ -281,7 +281,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Invalid Preview Index
 - **Test ID:** `CAM-PREV-003`
-- **Implementation:** [test_invalid_preview_index](./tests/test_camera_api.py#L469)
+- **Implementation:** [test_invalid_preview_index](api/test_camera_api.py#L491)
 - **Given:** Camera app is initialized
 - **Action:** `PUT /cameraApp/preview-index` with body `{"index": 99}`
 - **Expects:**
@@ -295,7 +295,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Get Camera Settings
 - **Test ID:** `CAM-SET-001`
-- **Implementation:** [test_get_camera_settings](./tests/test_camera_api.py#L498)
+- **Implementation:** [test_get_camera_settings](api/test_camera_api.py#L520)
 - **Given:** Server is running
 - **Action:** `GET /cameraApp/settings`
 - **Expects:**
@@ -305,7 +305,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Update Camera Settings
 - **Test ID:** `CAM-SET-002`
-- **Implementation:** [test_update_camera_settings](./tests/test_camera_api.py#L520)
+- **Implementation:** [test_update_camera_settings](api/test_camera_api.py#L552)
 - **Given:** Camera app is NOT recording/capturing
 - **Action:** `PUT /cameraApp/settings` with body:
   ```json
@@ -322,7 +322,7 @@ This document specifies integration tests and end-to-end tests for the DimenvueP
 
 #### Test: Update Camera Settings With Invalid keys
 - **Test ID:** `CAM-SET-003`
-- **Implementation:** [test_update_camera_settings_invalid_keys](./tests/test_camera_api.py#L564)
+- **Implementation:** [test_update_camera_settings_invalid_keys](api/test_camera_api.py#L596)
 - **Given:** Camera app is NOT recording/capturing
 - **Action:** `PUT /cameraApp/settings` with body:
   ```json
@@ -364,7 +364,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Start Mapping Success
 - **Test ID:** `MAP-LIFE-001`
-- **Implementation:** [test_start_mapping_success](./tests/test_mapping_api.py#L26)
+- **Implementation:** [test_start_mapping_success](api/test_mapping_api.py#L26)
 - **Given:**
   - No mapping running (state: idle)
   - ROS2 is available (launch module can be imported)
@@ -381,7 +381,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Verify Node Launch After Start
 - **Test ID:** `MAP-LIFE-002`
-- **Implementation:** [test_verify_node_launch_after_start](./tests/test_mapping_api.py#L49)
+- **Implementation:** [test_verify_node_launch_after_start](api/test_mapping_api.py#L49)
 - **Given:** Mapping just started (state: starting)
 - **Action:**
   1. Wait 2-3 seconds for nodes to initialize
@@ -393,9 +393,9 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
     - `/bridge_node`
     - `/recorder_node`
 
-#### Test: Automatic State Transition STARTING → INITIALIZING
+#### Test: Automatic State Transition STARTING INITIALIZING
 - **Test ID:** `MAP-LIFE-003`
-- **Implementation:** [test_automatic_transition_starting_to_initializing](./tests/test_mapping_api.py#L74)
+- **Implementation:** [test_automatic_transition_starting_to_initializing](api/test_mapping_api.py#L74)
 - **Given:**
   - Mapping started successfully (state: starting)
 - **Action:**
@@ -405,9 +405,9 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
   - IMU status file contains "TRACKING"
   - State transitions from STARTING → INITIALIZING automatically
 
-#### Test: Automatic State Transition INITIALIZING → RUNNING
+#### Test: Automatic State Transition INITIALIZING RUNNING
 - **Test ID:** `MAP-LIFE-004`
-- **Implementation:** [test_automatic_transition_initializing_to_running](./tests/test_mapping_api.py#L105)
+- **Implementation:** [test_automatic_transition_initializing_to_running](api/test_mapping_api.py#L105)
 - **Given:**
   - Mapping is initializing (state: initializing)
   - IMU monitor is tracking stability
@@ -421,7 +421,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Duplicate Mapping Start (Idempotency - Running)
 - **Test ID:** `MAP-LIFE-005`
-- **Implementation:** [test_duplicate_mapping_start_running](./tests/test_mapping_api.py#L137)
+- **Implementation:** [test_duplicate_mapping_start_running](api/test_mapping_api.py#L137)
 - **Given:** Mapping process is already running (state: running)
 - **Action:** `PUT /mappingApp/start`
 - **Expects:**
@@ -430,7 +430,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Duplicate Mapping Start (Idempotency - Initializing)
 - **Test ID:** `MAP-LIFE-006`
-- **Implementation:** [test_duplicate_mapping_start_initializing](./tests/test_mapping_api.py#L167)
+- **Implementation:** [test_duplicate_mapping_start_initializing](api/test_mapping_api.py#L167)
 - **Given:** Mapping is in INITIALIZING state (waiting for IMU)
 - **Action:** `PUT /mappingApp/start`
 - **Expects:**
@@ -439,7 +439,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Start During Stopping
 - **Test ID:** `MAP-LIFE-007`
-- **Implementation:** [test_start_during_stopping](./tests/test_mapping_api.py#L194)
+- **Implementation:** [test_start_during_stopping](api/test_mapping_api.py#L194)
 - **Given:** Mapping is being stopped (state: stopping)
 - **Action:** `PUT /mappingApp/start` while stop is in progress
 - **Expects:**
@@ -450,7 +450,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Start During Starting (Race Condition)
 - **Test ID:** `MAP-LIFE-008`
-- **Implementation:** [test_start_during_starting_race](./tests/test_mapping_api.py#L237)
+- **Implementation:** [test_start_during_starting_race](api/test_mapping_api.py#L237)
 - **Given:** Mapping is during startup (state: starting)
 - **Action:** Second `PUT /mappingApp/start` arrives before first completes
 - **Expects:**
@@ -461,7 +461,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Stop Mapping from RUNNING State
 - **Test ID:** `MAP-LIFE-009`
-- **Implementation:** [test_stop_mapping_from_running](./tests/test_mapping_api.py#L271)
+- **Implementation:** [test_stop_mapping_from_running](api/test_mapping_api.py#L271)
 - **Given:** Mapping has been running for at least 15 seconds (IMU stabilized)
 - **Action:** `PUT /mappingApp/stop`
 - **Expects:**
@@ -479,7 +479,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Stop Mapping During INITIALIZING
 - **Test ID:** `MAP-LIFE-010`
-- **Implementation:** [test_stop_mapping_during_initializing](./tests/test_mapping_api.py#L311)
+- **Implementation:** [test_stop_mapping_during_initializing](api/test_mapping_api.py#L311)
 - **Given:** Mapping is in INITIALIZING state
 - **Action:** `PUT /mappingApp/stop`
 - **Expects:**
@@ -488,7 +488,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Stop Mapping During STARTING
 - **Test ID:** `MAP-LIFE-011`
-- **Implementation:** [test_stop_mapping_during_starting](./tests/test_mapping_api.py#L336)
+- **Implementation:** [test_stop_mapping_during_starting](api/test_mapping_api.py#L336)
 - **Given:** Mapping just started (state: starting, nodes still launching)
 - **Action:** `PUT /mappingApp/stop` (within 1-2 seconds of start)
 - **Expects:**
@@ -497,7 +497,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Stop Mapping during STOPPING
 - **Test ID:** `MAP-LIFE-012`
-- **Implementation:** [test_stop_mapping_during_stopping](./tests/test_mapping_api.py#L367)
+- **Implementation:** [test_stop_mapping_during_stopping](api/test_mapping_api.py#L367)
 - **Given:** Mapping is running
 - **Action:** Send `PUT /mappingApp/stop` twice in rapid succession
 - **Expects:**
@@ -508,7 +508,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Stop Mapping Idempotency
 - **Test ID:** `MAP-LIFE-013`
-- **Implementation:** [test_stop_mapping_idempotency](./tests/test_mapping_api.py#L408)
+- **Implementation:** [test_stop_mapping_idempotency](api/test_mapping_api.py#L408)
 - **Given:** No mapping process running (state: idle)
 - **Action:** `PUT /mappingApp/stop`
 - **Expects:**
@@ -523,7 +523,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping State - IDLE
 - **Test ID:** `MAP-STATE-001`
-- **Implementation:** [test_get_mapping_state_idle](./tests/test_mapping_api.py#L430)
+- **Implementation:** [test_get_mapping_state_idle](api/test_mapping_api.py#L430)
 - **Given:** No mapping process running
 - **Action:** `GET /mappingApp/state`
 - **Expects:**
@@ -532,7 +532,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping State - STARTING
 - **Test ID:** `MAP-STATE-002`
-- **Implementation:** [test_get_mapping_state_starting](./tests/test_mapping_api.py#L448)
+- **Implementation:** [test_get_mapping_state_starting](api/test_mapping_api.py#L448)
 - **Given:** Mapping just started, LaunchService launching nodes
 - **Action:** `GET /mappingApp/state` immediately after start
 - **Expects:**
@@ -541,7 +541,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping State - INITIALIZING
 - **Test ID:** `MAP-STATE-003`
-- **Implementation:** [test_get_mapping_state_initializing](./tests/test_mapping_api.py#L478)
+- **Implementation:** [test_get_mapping_state_initializing](api/test_mapping_api.py#L478)
 - **Given:** Nodes launched, IMU not yet stabilized
 - **Action:** `GET /mappingApp/state`
 - **Expects:**
@@ -550,7 +550,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping State - RUNNING
 - **Test ID:** `MAP-STATE-004`
-- **Implementation:** [test_get_mapping_state_running](./tests/test_mapping_api.py#L503)
+- **Implementation:** [test_get_mapping_state_running](api/test_mapping_api.py#L503)
 - **Given:** IMU stabilized, actively mapping
 - **Action:** `GET /mappingApp/state`
 - **Expects:**
@@ -559,7 +559,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping State - STOPPING
 - **Test ID:** `MAP-STATE-005`
-- **Implementation:** [test_get_mapping_state_stopping](./tests/test_mapping_api.py#L530)
+- **Implementation:** [test_get_mapping_state_stopping](api/test_mapping_api.py#L530)
 - **Given:** Stop requested, shutdown in progress
 - **Action:** `GET /mappingApp/state` during stop
 - **Expects:**
@@ -573,7 +573,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Concurrent Start Requests
 - **Test ID:** `MAP-CONC-001`
-- **Implementation:** [test_concurrent_start_requests](./tests/test_mapping_api.py#L575)
+- **Implementation:** [test_concurrent_start_requests](api/test_mapping_api.py#L575)
 - **Given:** Mapping is idle
 - **Action:** Send 3 concurrent `PUT /mappingApp/start` requests
 - **Expects:**
@@ -584,7 +584,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Concurrent Stop Requests
 - **Test ID:** `MAP-CONC-002`
-- **Implementation:** [test_concurrent_stop_requests](./tests/test_mapping_api.py#L612)
+- **Implementation:** [test_concurrent_stop_requests](api/test_mapping_api.py#L612)
 - **Given:**
   - Mapping state is RUNNING
 - **Action:** Send 3 concurrent `PUT /mappingApp/stop` requests
@@ -595,7 +595,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Rapid Start/Stop Cycle
 - **Test ID:** `MAP-CONC-003`
-- **Implementation:** [test_rapid_start_stop_cycle](./tests/test_mapping_api.py#L659)
+- **Implementation:** [test_rapid_start_stop_cycle](api/test_mapping_api.py#L659)
 - **Given:** Mapping is idle
 - **Action:**
   1. `PUT /mappingApp/start` (wait for state → initializing or running)
@@ -616,7 +616,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Mapping Settings
 - **Test ID:** `MAP-SET-001`
-- **Implementation:** [test_get_mapping_settings](./tests/test_mapping_api.py#L711)
+- **Implementation:** [test_get_mapping_settings](api/test_mapping_api.py#L711)
 - **Given:** Server is running
 - **Action:** `GET /mappingApp/settings`
 - **Expects:**
@@ -641,7 +641,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Update Mapping Settings (Idle State)
 - **Test ID:** `MAP-SET-002`
-- **Implementation:** [test_update_mapping_settings_idle](./tests/test_mapping_api.py#L740)
+- **Implementation:** [test_update_mapping_settings_idle](api/test_mapping_api.py#L740)
 - **Given:** No mapping in progress (state: idle)
 - **Action:** `PUT /mappingApp/settings` with body:
   ```json
@@ -658,7 +658,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Update Settings During Mapping
 - **Test ID:** `MAP-SET-003`
-- **Implementation:** [test_update_settings_during_mapping](./tests/test_mapping_api.py#L778)
+- **Implementation:** [test_update_settings_during_mapping](api/test_mapping_api.py#L778)
 - **Given:** Mapping is running (state: running)
 - **Action:**
   - `PUT /mappingApp/settings` with new values
@@ -670,7 +670,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Invalid Setting
 - **Test ID:** `MAP-SET-004`
-- **Implementation:** [test_invalid_setting](./tests/test_mapping_api.py#L831)
+- **Implementation:** [test_invalid_setting](api/test_mapping_api.py#L831)
 - **Given:** Mapping is idle
 - **Action:** `PUT /mappingApp/settings` with body:
   ```json
@@ -691,7 +691,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Full Catalog
 - **Test ID:** `CAT-RET-001`
-- **Implementation:** [test_get_full_catalog](./tests/test_catalog_api.py#L22)
+- **Implementation:** [test_get_full_catalog](api/test_catalog_api.py#L22)
 - **Given:** Catalog contains 5 items (2 images, 2 videos, 1 scan)
 - **Action:** `GET /catalog`
 - **Expects:**
@@ -702,7 +702,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Empty Catalog
 - **Test ID:** `CAT-RET-002`
-- **Implementation:** [test_get_empty_catalog](./tests/test_catalog_api.py#L97)
+- **Implementation:** [test_get_empty_catalog](api/test_catalog_api.py#L99)
 - **Given:** Catalog is empty (no items)
 - **Action:** `GET /catalog`
 - **Expects:**
@@ -715,7 +715,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Image Metadata
 - **Test ID:** `CAT-META-001`
-- **Implementation:** [test_get_image_metadata](./tests/test_catalog_api.py#L130)
+- **Implementation:** [test_get_image_metadata](api/test_catalog_api.py#L132)
 - **Given:** Catalog contains an image item with UUID `abc-123`
 - **Action:** `GET /catalog/metadata/{file_path}`
 - **Expects:**
@@ -724,7 +724,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Metadata for Non-Existent File
 - **Test ID:** `CAT-META-002`
-- **Implementation:** [test_get_metadata_nonexistent_file](./tests/test_catalog_api.py#L160)
+- **Implementation:** [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L162)
 - **Given:** Catalog does not contain file at path
 - **Action:** `GET /catalog/metadata/invalid/path.jpg`
 - **Expects:**
@@ -736,7 +736,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Delete Item by UUID
 - **Test ID:** `CAT-DEL-001`
-- **Implementation:** [test_delete_item_by_uuid](./tests/test_catalog_api.py#L179)
+- **Implementation:** [test_delete_item_by_uuid](api/test_catalog_api.py#L181)
 - **Given:** Catalog contains item with UUID `abc-123`
 - **Action:** `PUT /catalog/abc-123/delete`
 - **Expects:**
@@ -747,7 +747,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Delete Non-Existent Item
 - **Test ID:** `CAT-DEL-002`
-- **Implementation:** [test_delete_nonexistent_item](./tests/test_catalog_api.py#L223)
+- **Implementation:** [test_delete_nonexistent_item](api/test_catalog_api.py#L225)
 - **Given:** Catalog does not contain UUID `invalid-uuid`
 - **Action:** `PUT /catalog/invalid-uuid/delete`
 - **Expects:**
@@ -759,7 +759,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Rename Item
 - **Test ID:** `CAT-REN-001`
-- **Implementation:** [test_rename_item](./tests/test_catalog_api.py#L243)
+- **Implementation:** [test_rename_item](api/test_catalog_api.py#L245)
 - **Given:** Catalog contains item with UUID `abc-123` and name "Scan001"
 - **Action:** `PUT /catalog/abc-123/rename` with body:
   ```json
@@ -774,7 +774,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Rename with Duplicate Name
 - **Test ID:** `CAT-REN-002`
-- **Implementation:** [test_rename_with_duplicate_name](./tests/test_catalog_api.py#L292)
+- **Implementation:** [test_rename_with_duplicate_name](api/test_catalog_api.py#L294)
 - **Given:**
   - Item `abc-123` named "Scan001"
   - Item `def-456` already named "Scan002"
@@ -789,7 +789,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Export Item to USB
 - **Test ID:** `CAT-EXP-001`
-- **Implementation:** [test_export_item_to_usb](./tests/test_catalog_api.py#L356)
+- **Implementation:** [test_export_item_to_usb](api/test_catalog_api.py#L358)
 - **Given:**
   - Catalog contains item `abc-123`
   - USB device mounted at `/media/usb0`
@@ -806,7 +806,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Export Invalid Item
 - **Test ID:** `CAT-EXP-002`
-- **Implementation:** [test_export_invalid_item](./tests/test_catalog_api.py#L395)
+- **Implementation:** [test_export_invalid_item](api/test_catalog_api.py#L397)
 - **Given:** Catalog doesn't contain item `abc-123`
 - **Action:** `PUT /catalog/abc-123/export`
 - **Expects:**
@@ -820,7 +820,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: List USB Devices
 - **Test ID:** `STO-REM-001`
-- **Implementation:** [test_list_usb_devices_with_usb_connected](./tests/test_storage_api.py#L21)
+- **Implementation:** [test_list_usb_devices_with_usb_connected](api/test_storage_api.py#L21)
 - **Given:**
   - 1 USB device connected at `/media/usb0`
   - Device has 16GB total, 8GB free
@@ -847,7 +847,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: No USB Devices
 - **Test ID:** `STO-REM-002`
-- **Implementation:** [test_list_usb_devices_with_no_usb](./tests/test_storage_api.py#L77)
+- **Implementation:** [test_list_usb_devices_with_no_usb](api/test_storage_api.py#L77)
 - **Given:** No removable storage connected
 - **Action:** `GET /storage/removable`
 - **Expects:**
@@ -860,7 +860,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Internal Storage Usage
 - **Test ID:** `STO-INT-001`
-- **Implementation:** [test_get_internal_storage_usage](./tests/test_storage_api.py#L96)
+- **Implementation:** [test_get_internal_storage_usage](api/test_storage_api.py#L96)
 - **Given:** catalog with following stats:
 ```json
 {
@@ -879,7 +879,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Format Internal Storage
 - **Test ID:** `STO-INT-002`
-- **Implementation:** [test_format_internal_storage](./tests/test_storage_api.py#L159)
+- **Implementation:** [test_format_internal_storage](api/test_storage_api.py#L159)
 - **Given:** Internal storage has items
 - **Action:** `PUT /storage/internal/format`
 - **Expects:**
@@ -895,7 +895,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Format External Storage
 - **Test ID:** `STO-EXT-001`
-- **Implementation:** [test_format_external_storage](./tests/test_storage_api.py#L207)
+- **Implementation:** [test_format_external_storage](api/test_storage_api.py#L207)
 - **Given:** USB device at `/media/usb0` with files
 - **Action:** `PUT /storage/external/format` with body:
   ```json
@@ -909,7 +909,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Format Non-Existent Device
 - **Test ID:** `STO-EXT-002`
-- **Implementation:** [test_format_external_storage_non_existent_device](./tests/test_storage_api.py#L256)
+- **Implementation:** [test_format_external_storage_non_existent_device](api/test_storage_api.py#L256)
 - **Given:** No device at `/media/invalid`
 - **Action:** `PUT /storage/external/format` with device `/media/invalid`
 - **Expects:**
@@ -923,7 +923,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Export Progress - Empty Queue
 - **Test ID:** `EXP-QUE-001`
-- **Implementation:** [test_get_export_progress_empty_queue](./tests/test_export_api.py#L16)
+- **Implementation:** [test_get_export_progress_empty_queue](api/test_export_api.py#L16)
 - **Given:** No exports in progress
 - **Action:** `GET /export/progress`
 - **Expects:**
@@ -932,7 +932,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Export Progress - Active
 - **Test ID:** `EXP-QUE-002`
-- **Implementation:** [test_get_export_progress_active](./tests/test_export_api.py#L53)
+- **Implementation:** [test_get_export_progress_active](api/test_export_api.py#L53)
 - **Given:**
   - 3 items in export queue
   - 1st item is 50% complete
@@ -948,11 +948,11 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ## 7. End-to-End Test Scenarios
 
-### E2E-1: Complete Photo Capture Workflow
+### EE-1: Complete Photo Capture Workflow
 
 #### Test: Capture, View, Export Photo
-- **Test ID:** `E2E-001`
-- **Implementation:** [test_e2e_complete_photo_capture_workflow](./tests/test_e2e.py#L21)
+- **Test ID:** `EE-001`
+- **Implementation:** [test_ee_complete_photo_capture_workflow](ee/test_ee.py#L175)
 - **Given:**
   - Clean system state
   - USB device connected
@@ -972,36 +972,38 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ---
 
-### E2E-2: Video Recording Workflow
+### EE-2: Video Recording Workflow
 
 #### Test: Record, Rename, Export Video
-- **Test ID:** `E2E-002`
-- **Implementation:** [test_e2e_video_recording_workflow](./tests/test_e2e.py#L114)
+- **Test ID:** `EE-002`
+- **Implementation:** [test_ee_video_recording_workflow](ee/test_ee.py#L279)
 - **Given:**
   - Camera initialized
   - Internal storage has space
 - **Action:**
-  1. `PUT /cameraApp/recordStart`
-  2. Wait 10 seconds
-  3. `PUT /cameraApp/recordStop`
-  4. `GET /catalog` (get video UUID)
-  5. `PUT /catalog/{uuid}/rename` to "TestVideo"
-  6. `PUT /catalog/{uuid}/export` to USB
-  7. Poll `GET /export/progress`
-  8. `GET /export/results` (verify success)
+  1. `PUT /cameraApp/init`
+  2. `PUT /cameraApp/recordStart`
+  3. Wait 5 seconds
+  4. `PUT /cameraApp/recordStop`
+  5. `GET /catalog` - get video UUID, verify video files in correct location
+  6. `PUT /catalog/{uuid}/rename` to "TestVideo"
+  7. `GET /catalog` - verify name changed, verify video files in correct location
+  8. `PUT /catalog/{uuid}/export` to USB
+  9. Poll `GET /export/progress` until complete
+  10. Verify exported files on USB
 - **Expects:**
-  - Video ~10 seconds long
-  - 3 video files created (left/front/right)
-  - Rename reflects in catalog
-  - Export succeeds with progress 0→100%
+  - Video ~5 seconds long
+  - 3 video files created (left/front/right) in item directory
+  - After rename: name reflects in catalog, files still in correct location
+  - Export succeeds with files copied to USB
 
 ---
 
-### E2E-3: Spatial Mapping Workflow
+### EE-3: Spatial Mapping Workflow
 
 #### Test: Map Environment, Save Scan, Export
-- **Test ID:** `E2E-003`
-- **Implementation:** [test_e2e_spatial_mapping_workflow](./tests/test_e2e.py#L216)
+- **Test ID:** `EE-003`
+- **Implementation:** [test_ee_spatial_mapping_workflow](ee/test_ee.py#L385)
 - **Given:**
   - ROS2 workspace available at `/ros2_ws` with `fast_lio` and `point_cloud_bridge` packages installed
   - Development mode enabled (rosbag data available at `/shared_data/office_sim_bag/`)
@@ -1045,11 +1047,11 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ---
 
-### E2E-4: Storage Management Workflow
+### EE-4: Storage Management Workflow
 
 #### Test: Fill Storage, Delete Items, Format
-- **Test ID:** `E2E-004`
-- **Implementation:** [test_e2e_storage_management_workflow](./tests/test_e2e.py#L347)
+- **Test ID:** `EE-004`
+- **Implementation:** [test_ee_storage_management_workflow](ee/test_ee.py#L682)
 - **Given:** Server is running
 - **Action:**
   1. Capture 10 photos
@@ -1067,11 +1069,11 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ---
 
-### E2E-5: Multi-Export Queue Management
+### EE-5: Multi-Export Queue Management
 
 #### Test: Queue Multiple Exports, Monitor Progress
-- **Test ID:** `E2E-005`
-- **Implementation:** [test_e2e_multi_export_queue_management](./tests/test_e2e.py#L465)
+- **Test ID:** `EE-005`
+- **Implementation:** [test_ee_multi_export_queue_management](ee/test_ee.py#L767)
 - **Given:**
   - Catalog has 5 items
   - USB device connected
@@ -1090,11 +1092,11 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ---
 
-### E2E-6: Preview Switching During Recording
+### EE-6: Preview Switching During Recording
 
 #### Test: Switch Preview While Recording
-- **Test ID:** `E2E-006`
-- **Implementation:** [test_e2e_preview_switching_during_recording](./tests/test_e2e.py#L586)
+- **Test ID:** `EE-006`
+- **Implementation:** [test_ee_preview_switching_during_recording](ee/test_ee.py#L858)
 - **Given:** Camera initialized and recording
 - **Action:**
   1. `PUT /cameraApp/recordStart`
@@ -1118,7 +1120,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: 50 Consecutive Captures
 - **Test ID:** `LOAD-001`
-- **Implementation:** [test_rapid_capture_sequence](./tests/test_performance.py#L26)
+- **Implementation:** [test_rapid_capture_sequence](test_performance.py#L26)
 - **Given:** Camera initialized
 - **Action:** Execute `PUT /cameraApp/capture` 50 times in rapid succession
 - **Expects:**
@@ -1134,7 +1136,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: 1-Hour Video Recording
 - **Test ID:** `LOAD-002`
-- **Implementation:** [test_long_recording_session](./tests/test_performance.py#L131)
+- **Implementation:** [test_long_recording_session](test_performance.py#L131)
 - **Given:**
   - Camera initialized
   - Sufficient storage (>50GB free)
@@ -1154,7 +1156,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Queue 100 Items for Export
 - **Test ID:** `LOAD-003`
-- **Implementation:** [test_large_export_queue](./tests/test_performance.py#L252)
+- **Implementation:** [test_large_export_queue](test_performance.py#L252)
 - **Given:** Catalog has 100 items (mix of photos/videos/scans)
 - **Action:**
   1. Queue all 100 items for export
@@ -1202,9 +1204,9 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 ## 11. Test Execution Priorities
 
 ### Priority 1 (Critical Path)
-- E2E-1: Photo capture workflow
-- E2E-2: Video recording workflow
-- E2E-3: Spatial mapping workflow
+- EE-1: Photo capture workflow
+- EE-2: Video recording workflow
+- EE-3: Spatial mapping workflow
 - Camera init/deinit
 - Catalog CRUD operations
 
@@ -1270,94 +1272,329 @@ def mock_mapping_process():
 
 ---
 
+## 9. Unit Tests
+
+### 9.1 Mapping Finalization
+
+#### Test: do_finalize with Valid PCD File
+- **Test ID:** `UNIT-FIN-001`
+- **Implementation:** [test_do_finalize_valid_pcd](units/test_finalize_mapping.py#L120)
+- **Given:**
+  - Temp artifact directory with:
+    - `map_result.PCD` file containing valid point cloud data (random 1000 points)
+    - `sensor_raw/` directory with mock rosbag metadata
+- **Action:** Call `do_finalize(artifact_dir, "PCD")`
+- **Expects:**
+  - Returns without error
+  - `thumbnail.png` generated in artifact_dir
+  - `map_metadata.json` generated with valid structure containing:
+    - `point_count`: number of points
+    - `bounds`: min/max x,y,z
+    - `created_at`: ISO timestamp
+    - `file_format`: "PCD"
+
+#### Test: do_finalize with Missing Map File
+- **Test ID:** `UNIT-FIN-002`
+- **Implementation:** [test_do_finalize_missing_map](units/test_finalize_mapping.py#L168)
+- **Given:** Empty artifact directory (no map_result file)
+- **Action:** Call `do_finalize(artifact_dir, "PCD")`
+- **Expects:**
+  - Raises appropriate error (FileNotFoundError or similar)
+  - Does NOT call sys.exit()
+
+#### Test: do_finalize PLY Format
+- **Test ID:** `UNIT-FIN-003`
+- **Implementation:** [test_do_finalize_ply_format](units/test_finalize_mapping.py#L202)
+- **Given:** Artifact directory with `map_result.PLY` file (500 points)
+- **Action:** Call `do_finalize(artifact_dir, "PLY")`
+- **Expects:**
+  - Returns without error
+  - `map_metadata.json` generated with num_points=500
+
+#### Test: do_finalize PCD Format
+- **Test ID:** `UNIT-FIN-004`
+- **Implementation:** [test_do_finalize_pcd_format](units/test_finalize_mapping.py#L218)
+- **Given:** Artifact directory with `map_result.PCD` file (500 points)
+- **Action:** Call `do_finalize(artifact_dir, "PCD")`
+- **Expects:**
+  - Returns without error
+  - `map_metadata.json` generated with num_points=500
+
+#### Test: load_pointcloud PCD File
+- **Test ID:** `UNIT-FIN-005`
+- **Implementation:** [test_load_pcd_file](units/test_finalize_mapping.py#L238)
+- **Given:** Valid PCD file with 100 points
+- **Action:** Call `load_pointcloud(filepath)`
+- **Expects:**
+  - Returns numpy array with shape (100, 3)
+  - Points loaded correctly
+
+#### Test: load_pointcloud Unsupported Format
+- **Test ID:** `UNIT-FIN-006`
+- **Implementation:** [test_load_unsupported_format](units/test_finalize_mapping.py#L253)
+- **Given:** File with unsupported extension (.xyz)
+- **Action:** Call `load_pointcloud(filepath)`
+- **Expects:**
+  - Raises `ValueError` with "Unsupported file format"
+
+#### Test: calculate_area_volume Box
+- **Test ID:** `UNIT-FIN-007`
+- **Implementation:** [test_calculate_area_volume_box](units/test_finalize_mapping.py#L269)
+- **Given:** Point cloud forming a 10x10x5 box
+- **Action:** Call `calculate_area_volume(points)`
+- **Expects:**
+  - Area approximately 100 (10 * 10)
+  - Volume approximately 500 (10 * 10 * 5)
+
+#### Test: calculate_area_volume Empty
+- **Test ID:** `UNIT-FIN-008`
+- **Implementation:** [test_calculate_area_volume_empty](units/test_finalize_mapping.py#L287)
+- **Given:** Empty point cloud (0 points)
+- **Action:** Call `calculate_area_volume(points)`
+- **Expects:**
+  - Returns 0.0 or (0.0, 0.0)
+  - No exception raised
+
+---
+
+### 9.2 ROS2 Lifecycle Management
+
+#### Test: StartEverything Node Creation
+- **Test ID:** `UNIT-ROS-001`
+- **Implementation:** [test_start_everything_nodes](units/test_ros2_lifecycle.py#L126)
+- **Given:** ROS2 environment available, no mapping nodes running
+- **Action:** Call `await StartEverything(file_format="PCD", artifact_dir="/tmp/test")`
+- **Expects:**
+  - Function returns without error
+  - ROS2 launch process started (subprocess running)
+  - After 5s delay, `ros2 node list` contains expected nodes:
+    - `/fastlio_mapping`
+    - `/imu_monitor`
+    - `/bridge_node`
+    - `/recorder_node`
+  - `ros2 topic list` contains expected topics:
+    - `/ouster/imu`
+    - `/ouster/points`
+    - `/cloud_registered_body`
+    - `/Odometry`
+
+#### Test: StartEverything Creates Artifact Directory
+- **Test ID:** `UNIT-ROS-002`
+- **Implementation:** [test_start_everything_artifact_dir](units/test_ros2_lifecycle.py#L188)
+- **Given:** artifact_dir does not exist
+- **Action:** Call `await StartEverything(file_format="PCD", artifact_dir="/tmp/new_artifact_dir")`
+- **Expects:**
+  - artifact_dir created automatically
+  - Directory has proper permissions
+
+#### Test: StopEverything Process Shutdown
+- **Test ID:** `UNIT-ROS-003`
+- **Implementation:** [test_stop_everything_shutdown](units/test_ros2_lifecycle.py#L221)
+- **Given:** StartEverything was called and nodes are running
+- **Action:** Call `await StopEverything()`
+- **Expects:**
+  - Function returns without error
+  - Launch subprocess terminated (SIGINT sent)
+  - After 5s, `ros2 node list` returns empty or no mapping nodes
+  - No orphaned processes (`pgrep -f fastlio` returns nothing)
+
+#### Test: StopEverything Idempotency
+- **Test ID:** `UNIT-ROS-004`
+- **Implementation:** [test_stop_everything_idempotent](units/test_ros2_lifecycle.py#L280)
+- **Given:** No mapping nodes running (already stopped or never started)
+- **Action:** Call `await StopEverything()`
+- **Expects:**
+  - Returns without error
+  - No exceptions raised
+
+#### Test: Start/Stop Cycle
+- **Test ID:** `UNIT-ROS-005`
+- **Implementation:** [test_start_stop_cycle](units/test_ros2_lifecycle.py#L302)
+- **Given:** ROS2 environment available
+- **Action:** Start and stop mapping twice in sequence
+- **Expects:**
+  - Each cycle starts and stops without error
+  - No orphaned processes after cycles complete
+  - System can handle repeated start/stop operations
+
+### 9.3 IMU Monitor
+
+Tests for `ros2/imu_monitor.py` - IMU stabilization detection using moving standard deviation.
+
+**Detection Method:** Moving standard deviation (mstd) over 1-second window
+- Accelerometer mstd threshold: 0.3 m/s²
+- Gyroscope mstd threshold: 0.05 rad/s
+- Stabilization confirmation: Stable for `track_duration` seconds
+
+#### Test: IMU Monitor Detects Stabilization
+- **Test ID:** `UNIT-IMU-001`
+- **Implementation:** [test_imu_monitor_detects_stabilization](units/test_imu_monitor.py#L42)
+- **Given:**
+  - ROS2 environment available
+  - Test bag exists at `/shared_data/test_bag` with `/ouster/imu` topic
+- **Action:**
+  1. Start IMU monitor with `--imu-topic /ouster/imu --track-duration 3.0`
+  2. Play test_bag at 2x speed
+  3. Wait for status file to contain "STABILIZED"
+- **Expects:**
+  - IMU monitor starts successfully
+  - Status file created with "TRACKING" initially
+  - Stabilization detected within 30 seconds
+  - Status file contains "STABILIZED"
+
+#### Test: Status File Created on Start
+- **Test ID:** `UNIT-IMU-003`
+- **Implementation:** [test_status_file_created_on_start](units/test_imu_monitor.py#L140)
+- **Given:**
+  - ROS2 environment available
+  - IMU monitor configured with custom topic `/test_imu`
+- **Action:**
+  1. Start IMU monitor with `--imu-topic /test_imu`
+  2. Publish single IMU message to topic
+  3. Check status file
+- **Expects:**
+  - Status file created after first message received
+  - Initial status is "TRACKING"
+
+#### Test: MSTD Calculation Basic
+- **Test ID:** `UNIT-IMU-004`
+- **Implementation:** [test_calculate_std_basic](units/test_imu_monitor.py#L200)
+- **Given:** Buffer with values [1, 2, 3, 4, 5]
+- **Action:** Calculate standard deviation
+- **Expects:**
+  - Standard deviation equals sqrt(2) ≈ 1.414
+  - Mean equals 3, variance equals 2
+
+#### Test: MSTD Calculation Constant Values
+- **Test ID:** `UNIT-IMU-005`
+- **Implementation:** [test_calculate_std_constant_values](units/test_imu_monitor.py#L231)
+- **Given:** Buffer with all same values [5, 5, 5, 5, 5]
+- **Action:** Calculate standard deviation
+- **Expects:**
+  - Variance equals 0.0
+  - Standard deviation equals 0.0
+
+#### Test: MSTD Calculation High Variance
+- **Test ID:** `UNIT-IMU-006`
+- **Implementation:** [test_calculate_std_high_variance](units/test_imu_monitor.py#L251)
+- **Given:** Buffer with oscillating values [-10, 10, -10, 10, -10]
+- **Action:** Calculate standard deviation
+- **Expects:**
+  - Standard deviation > 5.0
+  - High variance detected correctly
+
+---
+
 ## Appendix: Test ID Reference Table
 
 | # | Test ID | Section | Test Name | Implementation |
 |---|---------|---------|-----------|----------------|
-| 1 | CAM-INIT-001 | 1.1 | [Camera Init Success](#test-camera-init-success) | [test_camera_init_success](./tests/test_camera_api.py#L19) |
-| 2 | CAM-INIT-002 | 1.1 | [Camera Init Idempotency](#test-camera-init-idempotency) | [test_camera_init_idempotency](./tests/test_camera_api.py#L35) |
-| 3 | CAM-INIT-003 | 1.1 | [Camera Deinit](#test-camera-deinit) | [test_camera_deinit](./tests/test_camera_api.py#L50) |
-| 4 | CAM-INIT-004 | 1.1 | [Deinit Idempotency](#test-deinit-idempotency) | [test_deinit_idempotency](./tests/test_camera_api.py#L64) |
-| 5 | CAM-INIT-005 | 1.1 | [Get Camera State](#test-get-camera-state) | [test_get_camera_state](./tests/test_camera_api.py#L80) |
-| 6 | CAM-INIT-006 | 1.1 | [Concurrent Init Requests](#test-concurrent-init-requests) | [test_concurrent_init_requests](./tests/test_camera_api.py#L91) |
-| 7 | CAM-INIT-007 | 1.1 | [Init During Deinit](#test-init-during-deinit) | [test_init_during_deinit](./tests/test_camera_api.py#L113) |
-| 8 | CAM-INIT-008 | 1.1 | [Deinit During Init](#test-deinit-during-init) | [test_deinit_during_init](./tests/test_camera_api.py#L143) |
-| 9 | CAM-INIT-009 | 1.1 | [Multiple Concurrent Deinit Requests](#test-multiple-concurrent-deinit-requests) | [test_multiple_concurrent_deinit_requests](./tests/test_camera_api.py#L170) |
-| 10 | CAM-INIT-010 | 1.1 | [Get State During Init](#test-get-state-during-init) | [test_get_state_during_init](./tests/test_camera_api.py#L195) |
-| 11 | CAM-INIT-011 | 1.1 | [Get State During Deinit](#test-get-state-during-deinit) | [test_get_state_during_deinit](./tests/test_camera_api.py#L222) |
-| 12 | CAM-INIT-012 | 1.1 | [Rapid Init/Deinit Cycle](#test-rapid-initdeinit-cycle) | [test_rapid_init_deinit_cycle](./tests/test_camera_api.py#L252) |
-| 13 | CAM-CAP-001 | 1.2 | [Single Frame Capture](#test-single-frame-capture) | [test_single_frame_capture](./tests/test_camera_api.py#L277) |
-| 14 | CAM-CAP-002 | 1.2 | [Capture Without Init](#test-capture-without-init) | [test_capture_without_init](./tests/test_camera_api.py#L298) |
-| 15 | CAM-CAP-003 | 1.2 | [Multiple Sequential Captures](#test-multiple-sequential-captures-back-to-back-when-previous-finish) | [test_multiple_sequential_captures](./tests/test_camera_api.py#L309) |
-| 16 | CAM-REC-001 | 1.3 | [Start Recording](#test-start-recording) | [test_start_recording](./tests/test_camera_api.py#L339) |
-| 17 | CAM-REC-002 | 1.3 | [Stop Recording](#test-stop-recording) | [test_stop_recording](./tests/test_camera_api.py#L359) |
-| 18 | CAM-REC-003 | 1.3 | [Record Start Without Init](#test-record-start-without-init) | [test_record_start_without_init](./tests/test_camera_api.py#L389) |
-| 19 | CAM-REC-004 | 1.3 | [Duplicate Record Start](#test-duplicate-record-start) | [test_duplicate_record_start](./tests/test_camera_api.py#L400) |
-| 20 | CAM-REC-005 | 1.3 | [Record Stop Without Start](#test-record-stop-without-start) | [test_record_stop_without_start](./tests/test_camera_api.py#L419) |
-| 21 | CAM-PREV-001 | 1.4 | [Switch Preview Index](#test-switch-preview-index) | [test_switch_preview_index](./tests/test_camera_api.py#L434) |
-| 22 | CAM-PREV-002 | 1.4 | [Get Preview Index](#test-get-preview-index) | [test_get_preview_index](./tests/test_camera_api.py#L454) |
-| 23 | CAM-PREV-003 | 1.4 | [Invalid Preview Index](#test-invalid-preview-index) | [test_invalid_preview_index](./tests/test_camera_api.py#L469) |
-| 24 | CAM-SET-001 | 1.5 | [Get Camera Settings](#test-get-camera-settings) | [test_get_camera_settings](./tests/test_camera_api.py#L498) |
-| 25 | CAM-SET-002 | 1.5 | [Update Camera Settings](#test-update-camera-settings) | [test_update_camera_settings](./tests/test_camera_api.py#L520) |
-| 26 | CAM-SET-003 | 1.5 | [Update Camera Settings With Invalid Keys](#test-update-camera-settings-with-invalid-keys) | [test_update_camera_settings_invalid_keys](./tests/test_camera_api.py#L564) |
-| 27 | MAP-LIFE-001 | 2.1 | [Start Mapping Success](#test-start-mapping-success) | [test_start_mapping_success](./tests/test_mapping_api.py#L26) |
-| 28 | MAP-LIFE-002 | 2.1 | [Verify Node Launch After Start](#test-verify-node-launch-after-start) | [test_verify_node_launch_after_start](./tests/test_mapping_api.py#L49) |
-| 29 | MAP-LIFE-003 | 2.1 | [Automatic Transition STARTING→INITIALIZING](#test-automatic-state-transition-starting--initializing) | [test_automatic_transition_starting_to_initializing](./tests/test_mapping_api.py#L74) |
-| 30 | MAP-LIFE-004 | 2.1 | [Automatic Transition INITIALIZING→RUNNING](#test-automatic-state-transition-initializing--running) | [test_automatic_transition_initializing_to_running](./tests/test_mapping_api.py#L105) |
-| 31 | MAP-LIFE-005 | 2.1 | [Duplicate Mapping Start (Running)](#test-duplicate-mapping-start-idempotency---running) | [test_duplicate_mapping_start_running](./tests/test_mapping_api.py#L137) |
-| 32 | MAP-LIFE-006 | 2.1 | [Duplicate Mapping Start (Initializing)](#test-duplicate-mapping-start-idempotency---initializing) | [test_duplicate_mapping_start_initializing](./tests/test_mapping_api.py#L167) |
-| 33 | MAP-LIFE-007 | 2.1 | [Start During Stopping](#test-start-during-stopping) | [test_start_during_stopping](./tests/test_mapping_api.py#L194) |
-| 34 | MAP-LIFE-008 | 2.1 | [Start During Starting (Race)](#test-start-during-starting-race-condition) | [test_start_during_starting_race](./tests/test_mapping_api.py#L237) |
-| 35 | MAP-LIFE-009 | 2.1 | [Stop Mapping from RUNNING](#test-stop-mapping-from-running-state) | [test_stop_mapping_from_running](./tests/test_mapping_api.py#L271) |
-| 36 | MAP-LIFE-010 | 2.1 | [Stop Mapping During INITIALIZING](#test-stop-mapping-during-initializing) | [test_stop_mapping_during_initializing](./tests/test_mapping_api.py#L311) |
-| 37 | MAP-LIFE-011 | 2.1 | [Stop Mapping During STARTING](#test-stop-mapping-during-starting) | [test_stop_mapping_during_starting](./tests/test_mapping_api.py#L336) |
-| 38 | MAP-LIFE-012 | 2.1 | [Stop Mapping During STOPPING](#test-stop-mapping-during-stopping) | [test_stop_mapping_during_stopping](./tests/test_mapping_api.py#L367) |
-| 39 | MAP-LIFE-013 | 2.1 | [Stop Mapping Idempotency](#test-stop-mapping-idempotency) | [test_stop_mapping_idempotency](./tests/test_mapping_api.py#L408) |
-| 40 | MAP-STATE-001 | 2.2 | [Get Mapping State - IDLE](#test-get-mapping-state---idle) | [test_get_mapping_state_idle](./tests/test_mapping_api.py#L430) |
-| 41 | MAP-STATE-002 | 2.2 | [Get Mapping State - STARTING](#test-get-mapping-state---starting) | [test_get_mapping_state_starting](./tests/test_mapping_api.py#L448) |
-| 42 | MAP-STATE-003 | 2.2 | [Get Mapping State - INITIALIZING](#test-get-mapping-state---initializing) | [test_get_mapping_state_initializing](./tests/test_mapping_api.py#L478) |
-| 43 | MAP-STATE-004 | 2.2 | [Get Mapping State - RUNNING](#test-get-mapping-state---running) | [test_get_mapping_state_running](./tests/test_mapping_api.py#L503) |
-| 44 | MAP-STATE-005 | 2.2 | [Get Mapping State - STOPPING](#test-get-mapping-state---stopping) | [test_get_mapping_state_stopping](./tests/test_mapping_api.py#L530) |
-| 45 | MAP-CONC-001 | 2.3 | [Concurrent Start Requests](#test-concurrent-start-requests) | [test_concurrent_start_requests](./tests/test_mapping_api.py#L575) |
-| 46 | MAP-CONC-002 | 2.3 | [Concurrent Stop Requests](#test-concurrent-stop-requests) | [test_concurrent_stop_requests](./tests/test_mapping_api.py#L612) |
-| 47 | MAP-CONC-003 | 2.3 | [Rapid Start/Stop Cycle](#test-rapid-startstop-cycle) | [test_rapid_start_stop_cycle](./tests/test_mapping_api.py#L659) |
-| 48 | MAP-SET-001 | 2.4 | [Get Mapping Settings](#test-get-mapping-settings) | [test_get_mapping_settings](./tests/test_mapping_api.py#L711) |
-| 49 | MAP-SET-002 | 2.4 | [Update Mapping Settings (Idle)](#test-update-mapping-settings-idle-state) | [test_update_mapping_settings_idle](./tests/test_mapping_api.py#L740) |
-| 50 | MAP-SET-003 | 2.4 | [Update Settings During Mapping](#test-update-settings-during-mapping) | [test_update_settings_during_mapping](./tests/test_mapping_api.py#L778) |
-| 51 | MAP-SET-004 | 2.4 | [Invalid Setting](#test-invalid-setting) | [test_invalid_setting](./tests/test_mapping_api.py#L831) |
-| 52 | CAT-RET-001 | 3.1 | [Get Full Catalog](#test-get-full-catalog) | [test_get_full_catalog](./tests/test_catalog_api.py#L22) |
-| 53 | CAT-RET-002 | 3.1 | [Get Empty Catalog](#test-get-empty-catalog) | [test_get_empty_catalog](./tests/test_catalog_api.py#L97) |
-| 54 | CAT-META-001 | 3.2 | [Get Image Metadata](#test-get-image-metadata) | [test_get_image_metadata](./tests/test_catalog_api.py#L130) |
-| 55 | CAT-META-002 | 3.2 | [Get Metadata for Non-Existent File](#test-get-metadata-for-non-existent-file) | [test_get_metadata_nonexistent_file](./tests/test_catalog_api.py#L160) |
-| 56 | CAT-DEL-001 | 3.3 | [Delete Item by UUID](#test-delete-item-by-uuid) | [test_delete_item_by_uuid](./tests/test_catalog_api.py#L179) |
-| 57 | CAT-DEL-002 | 3.3 | [Delete Non-Existent Item](#test-delete-non-existent-item) | [test_delete_nonexistent_item](./tests/test_catalog_api.py#L223) |
-| 58 | CAT-REN-001 | 3.4 | [Rename Item](#test-rename-item) | [test_rename_item](./tests/test_catalog_api.py#L243) |
-| 59 | CAT-REN-002 | 3.4 | [Rename with Duplicate Name](#test-rename-with-duplicate-name) | [test_rename_with_duplicate_name](./tests/test_catalog_api.py#L292) |
-| 60 | CAT-EXP-001 | 3.5 | [Export Item to USB](#test-export-item-to-usb) | [test_export_item_to_usb](./tests/test_catalog_api.py#L356) |
-| 61 | CAT-EXP-002 | 3.5 | [Export Invalid Item](#test-export-invalid-item) | [test_export_invalid_item](./tests/test_catalog_api.py#L395) |
-| 62 | STO-REM-001 | 4.1 | [List USB Devices](#test-list-usb-devices) | [test_list_usb_devices_with_usb_connected](./tests/test_storage_api.py#L21) |
-| 63 | STO-REM-002 | 4.1 | [No USB Devices](#test-no-usb-devices) | [test_list_usb_devices_with_no_usb](./tests/test_storage_api.py#L77) |
-| 64 | STO-INT-001 | 4.2 | [Get Internal Storage Usage](#test-get-internal-storage-usage) | [test_get_internal_storage_usage](./tests/test_storage_api.py#L96) |
-| 65 | STO-INT-002 | 4.2 | [Format Internal Storage](#test-format-internal-storage) | [test_format_internal_storage](./tests/test_storage_api.py#L159) |
-| 66 | STO-EXT-001 | 4.3 | [Format External Storage](#test-format-external-storage) | [test_format_external_storage](./tests/test_storage_api.py#L207) |
-| 67 | STO-EXT-002 | 4.3 | [Format Non-Existent Device](#test-format-non-existent-device) | [test_format_external_storage_non_existent_device](./tests/test_storage_api.py#L256) |
-| 68 | EXP-QUE-001 | 5.1 | [Get Export Progress - Empty Queue](#test-get-export-progress---empty-queue) | [test_get_export_progress_empty_queue](./tests/test_export_api.py#L16) |
-| 69 | EXP-QUE-002 | 5.1 | [Get Export Progress - Active](#test-get-export-progress---active) | [test_get_export_progress_active](./tests/test_export_api.py#L53) |
-| 70 | E2E-001 | 7 | [Complete Photo Capture Workflow](#test-complete-photo-capture-workflow) | [test_e2e_complete_photo_capture_workflow](./tests/test_e2e.py#L21) |
-| 71 | E2E-002 | 7 | [Video Recording Workflow](#test-video-recording-workflow) | [test_e2e_video_recording_workflow](./tests/test_e2e.py#L114) |
-| 72 | E2E-003 | 7 | [Spatial Mapping Workflow](#test-spatial-mapping-workflow) | [test_e2e_spatial_mapping_workflow](./tests/test_e2e.py#L216) |
-| 73 | E2E-004 | 7 | [Storage Management Workflow](#test-storage-management-workflow) | [test_e2e_storage_management_workflow](./tests/test_e2e.py#L347) |
-| 74 | E2E-005 | 7 | [Multi-Export Queue Management](#test-multi-export-queue-management) | [test_e2e_multi_export_queue_management](./tests/test_e2e.py#L465) |
-| 75 | E2E-006 | 7 | [Preview Switching During Recording](#test-preview-switching-during-recording) | [test_e2e_preview_switching_during_recording](./tests/test_e2e.py#L586) |
-| 76 | LOAD-001 | 8 | [Rapid Capture Sequence](#test-rapid-capture-sequence) | [test_rapid_capture_sequence](./tests/test_performance.py#L26) |
-| 77 | LOAD-002 | 8 | [Long Recording Session](#test-long-recording-session) | [test_long_recording_session](./tests/test_performance.py#L131) |
-| 78 | LOAD-003 | 8 | [Large Export Queue](#test-large-export-queue) | [test_large_export_queue](./tests/test_performance.py#L252) |
+| 1 | CAM-INIT-001 | 1.1 | [Camera Init Success](#test-camera-init-success) | [test_camera_init_success](api/test_camera_api.py#L21) |
+| 2 | CAM-INIT-002 | 1.1 | [Camera Init Idempotency](#test-camera-init-idempotency) | [test_camera_init_idempotency](api/test_camera_api.py#L37) |
+| 3 | CAM-INIT-003 | 1.1 | [Camera Deinit](#test-camera-deinit) | [test_camera_deinit](api/test_camera_api.py#L52) |
+| 4 | CAM-INIT-004 | 1.1 | [Deinit Idempotency](#test-deinit-idempotency) | [test_deinit_idempotency](api/test_camera_api.py#L66) |
+| 5 | CAM-INIT-005 | 1.1 | [Get Camera State](#test-get-camera-state) | [test_get_camera_state](api/test_camera_api.py#L82) |
+| 6 | CAM-INIT-006 | 1.1 | [Concurrent Init Requests](#test-concurrent-init-requests) | [test_concurrent_init_requests](api/test_camera_api.py#L93) |
+| 7 | CAM-INIT-007 | 1.1 | [Init During Deinit](#test-init-during-deinit) | [test_init_during_deinit](api/test_camera_api.py#L115) |
+| 8 | CAM-INIT-008 | 1.1 | [Deinit During Init](#test-deinit-during-init) | [test_deinit_during_init](api/test_camera_api.py#L145) |
+| 9 | CAM-INIT-009 | 1.1 | [Multiple Concurrent Deinit Requests](#test-multiple-concurrent-deinit-requests) | [test_multiple_concurrent_deinit_requests](api/test_camera_api.py#L172) |
+| 10 | CAM-INIT-010 | 1.1 | [Get State During Init](#test-get-state-during-init) | [test_get_state_during_init](api/test_camera_api.py#L197) |
+| 11 | CAM-INIT-011 | 1.1 | [Get State During Deinit](#test-get-state-during-deinit) | [test_get_state_during_deinit](api/test_camera_api.py#L224) |
+| 12 | CAM-INIT-012 | 1.1 | [Rapid Init/Deinit Cycle](#test-rapid-initdeinit-cycle) | [test_rapid_init_deinit_cycle](api/test_camera_api.py#L254) |
+| 13 | CAM-CAP-001 | 1.2 | [Single Frame Capture](#test-single-frame-capture) | [test_single_frame_capture](api/test_camera_api.py#L279) |
+| 14 | CAM-CAP-002 | 1.2 | [Capture Without Init](#test-capture-without-init) | [test_capture_without_init](api/test_camera_api.py#L306) |
+| 15 | CAM-CAP-003 | 1.2 | [Multiple Sequential Captures](#test-multiple-sequential-captures-back-to-back-when-previous-finish) | [test_multiple_sequential_captures](api/test_camera_api.py#L317) |
+| 16 | CAM-REC-001 | 1.3 | [Start Recording](#test-start-recording) | [test_start_recording](api/test_camera_api.py#L354) |
+| 17 | CAM-REC-002 | 1.3 | [Stop Recording](#test-stop-recording) | [test_stop_recording](api/test_camera_api.py#L374) |
+| 18 | CAM-REC-003 | 1.3 | [Record Start Without Init](#test-record-start-without-init) | [test_record_start_without_init](api/test_camera_api.py#L411) |
+| 19 | CAM-REC-004 | 1.3 | [Duplicate Record Start](#test-duplicate-record-start) | [test_duplicate_record_start](api/test_camera_api.py#L422) |
+| 20 | CAM-REC-005 | 1.3 | [Record Stop Without Start](#test-record-stop-without-start) | [test_record_stop_without_start](api/test_camera_api.py#L441) |
+| 21 | CAM-PREV-001 | 1.4 | [Switch Preview Index](#test-switch-preview-index) | [test_switch_preview_index](api/test_camera_api.py#L456) |
+| 22 | CAM-PREV-002 | 1.4 | [Get Preview Index](#test-get-preview-index) | [test_get_preview_index](api/test_camera_api.py#L476) |
+| 23 | CAM-PREV-003 | 1.4 | [Invalid Preview Index](#test-invalid-preview-index) | [test_invalid_preview_index](api/test_camera_api.py#L491) |
+| 24 | CAM-SET-001 | 1.5 | [Get Camera Settings](#test-get-camera-settings) | [test_get_camera_settings](api/test_camera_api.py#L520) |
+| 25 | CAM-SET-002 | 1.5 | [Update Camera Settings](#test-update-camera-settings) | [test_update_camera_settings](api/test_camera_api.py#L552) |
+| 26 | CAM-SET-003 | 1.5 | [Update Camera Settings With Invalid Keys](#test-update-camera-settings-with-invalid-keys) | [test_update_camera_settings_invalid_keys](api/test_camera_api.py#L596) |
+| 27 | MAP-LIFE-001 | 2.1 | [Start Mapping Success](#test-start-mapping-success) | [test_start_mapping_success](api/test_mapping_api.py#L26) |
+| 28 | MAP-LIFE-002 | 2.1 | [Verify Node Launch After Start](#test-verify-node-launch-after-start) | [test_verify_node_launch_after_start](api/test_mapping_api.py#L49) |
+| 29 | MAP-LIFE-003 | 2.1 | [Automatic Transition STARTING→INITIALIZING](#test-automatic-state-transition-starting-initializing) | [test_automatic_transition_starting_to_initializing](api/test_mapping_api.py#L74) |
+| 30 | MAP-LIFE-004 | 2.1 | [Automatic Transition INITIALIZING→RUNNING](#test-automatic-state-transition-initializing-running) | [test_automatic_transition_initializing_to_running](api/test_mapping_api.py#L105) |
+| 31 | MAP-LIFE-005 | 2.1 | [Duplicate Mapping Start (Running)](#test-duplicate-mapping-start-idempotency---running) | [test_duplicate_mapping_start_running](api/test_mapping_api.py#L137) |
+| 32 | MAP-LIFE-006 | 2.1 | [Duplicate Mapping Start (Initializing)](#test-duplicate-mapping-start-idempotency---initializing) | [test_duplicate_mapping_start_initializing](api/test_mapping_api.py#L167) |
+| 33 | MAP-LIFE-007 | 2.1 | [Start During Stopping](#test-start-during-stopping) | [test_start_during_stopping](api/test_mapping_api.py#L194) |
+| 34 | MAP-LIFE-008 | 2.1 | [Start During Starting (Race)](#test-start-during-starting-race-condition) | [test_start_during_starting_race](api/test_mapping_api.py#L237) |
+| 35 | MAP-LIFE-009 | 2.1 | [Stop Mapping from RUNNING](#test-stop-mapping-from-running-state) | [test_stop_mapping_from_running](api/test_mapping_api.py#L271) |
+| 36 | MAP-LIFE-010 | 2.1 | [Stop Mapping During INITIALIZING](#test-stop-mapping-during-initializing) | [test_stop_mapping_during_initializing](api/test_mapping_api.py#L311) |
+| 37 | MAP-LIFE-011 | 2.1 | [Stop Mapping During STARTING](#test-stop-mapping-during-starting) | [test_stop_mapping_during_starting](api/test_mapping_api.py#L336) |
+| 38 | MAP-LIFE-012 | 2.1 | [Stop Mapping During STOPPING](#test-stop-mapping-during-stopping) | [test_stop_mapping_during_stopping](api/test_mapping_api.py#L367) |
+| 39 | MAP-LIFE-013 | 2.1 | [Stop Mapping Idempotency](#test-stop-mapping-idempotency) | [test_stop_mapping_idempotency](api/test_mapping_api.py#L408) |
+| 40 | MAP-STATE-001 | 2.2 | [Get Mapping State - IDLE](#test-get-mapping-state---idle) | [test_get_mapping_state_idle](api/test_mapping_api.py#L430) |
+| 41 | MAP-STATE-002 | 2.2 | [Get Mapping State - STARTING](#test-get-mapping-state---starting) | [test_get_mapping_state_starting](api/test_mapping_api.py#L448) |
+| 42 | MAP-STATE-003 | 2.2 | [Get Mapping State - INITIALIZING](#test-get-mapping-state---initializing) | [test_get_mapping_state_initializing](api/test_mapping_api.py#L478) |
+| 43 | MAP-STATE-004 | 2.2 | [Get Mapping State - RUNNING](#test-get-mapping-state---running) | [test_get_mapping_state_running](api/test_mapping_api.py#L503) |
+| 44 | MAP-STATE-005 | 2.2 | [Get Mapping State - STOPPING](#test-get-mapping-state---stopping) | [test_get_mapping_state_stopping](api/test_mapping_api.py#L530) |
+| 45 | MAP-CONC-001 | 2.3 | [Concurrent Start Requests](#test-concurrent-start-requests) | [test_concurrent_start_requests](api/test_mapping_api.py#L575) |
+| 46 | MAP-CONC-002 | 2.3 | [Concurrent Stop Requests](#test-concurrent-stop-requests) | [test_concurrent_stop_requests](api/test_mapping_api.py#L612) |
+| 47 | MAP-CONC-003 | 2.3 | [Rapid Start/Stop Cycle](#test-rapid-startstop-cycle) | [test_rapid_start_stop_cycle](api/test_mapping_api.py#L659) |
+| 48 | MAP-SET-001 | 2.4 | [Get Mapping Settings](#test-get-mapping-settings) | [test_get_mapping_settings](api/test_mapping_api.py#L711) |
+| 49 | MAP-SET-002 | 2.4 | [Update Mapping Settings (Idle)](#test-update-mapping-settings-idle-state) | [test_update_mapping_settings_idle](api/test_mapping_api.py#L740) |
+| 50 | MAP-SET-003 | 2.4 | [Update Settings During Mapping](#test-update-settings-during-mapping) | [test_update_settings_during_mapping](api/test_mapping_api.py#L778) |
+| 51 | MAP-SET-004 | 2.4 | [Invalid Setting](#test-invalid-setting) | [test_invalid_setting](api/test_mapping_api.py#L831) |
+| 52 | CAT-RET-001 | 3.1 | [Get Full Catalog](#test-get-full-catalog) | [test_get_full_catalog](api/test_catalog_api.py#L22) |
+| 53 | CAT-RET-002 | 3.1 | [Get Empty Catalog](#test-get-empty-catalog) | [test_get_empty_catalog](api/test_catalog_api.py#L99) |
+| 54 | CAT-META-001 | 3.2 | [Get Image Metadata](#test-get-image-metadata) | [test_get_image_metadata](api/test_catalog_api.py#L132) |
+| 55 | CAT-META-002 | 3.2 | [Get Metadata for Non-Existent File](#test-get-metadata-for-non-existent-file) | [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L162) |
+| 56 | CAT-DEL-001 | 3.3 | [Delete Item by UUID](#test-delete-item-by-uuid) | [test_delete_item_by_uuid](api/test_catalog_api.py#L181) |
+| 57 | CAT-DEL-002 | 3.3 | [Delete Non-Existent Item](#test-delete-non-existent-item) | [test_delete_nonexistent_item](api/test_catalog_api.py#L225) |
+| 58 | CAT-REN-001 | 3.4 | [Rename Item](#test-rename-item) | [test_rename_item](api/test_catalog_api.py#L245) |
+| 59 | CAT-REN-002 | 3.4 | [Rename with Duplicate Name](#test-rename-with-duplicate-name) | [test_rename_with_duplicate_name](api/test_catalog_api.py#L294) |
+| 60 | CAT-EXP-001 | 3.5 | [Export Item to USB](#test-export-item-to-usb) | [test_export_item_to_usb](api/test_catalog_api.py#L358) |
+| 61 | CAT-EXP-002 | 3.5 | [Export Invalid Item](#test-export-invalid-item) | [test_export_invalid_item](api/test_catalog_api.py#L397) |
+| 62 | STO-REM-001 | 4.1 | [List USB Devices](#test-list-usb-devices) | [test_list_usb_devices_with_usb_connected](api/test_storage_api.py#L21) |
+| 63 | STO-REM-002 | 4.1 | [No USB Devices](#test-no-usb-devices) | [test_list_usb_devices_with_no_usb](api/test_storage_api.py#L77) |
+| 64 | STO-INT-001 | 4.2 | [Get Internal Storage Usage](#test-get-internal-storage-usage) | [test_get_internal_storage_usage](api/test_storage_api.py#L96) |
+| 65 | STO-INT-002 | 4.2 | [Format Internal Storage](#test-format-internal-storage) | [test_format_internal_storage](api/test_storage_api.py#L159) |
+| 66 | STO-EXT-001 | 4.3 | [Format External Storage](#test-format-external-storage) | [test_format_external_storage](api/test_storage_api.py#L207) |
+| 67 | STO-EXT-002 | 4.3 | [Format Non-Existent Device](#test-format-non-existent-device) | [test_format_external_storage_non_existent_device](api/test_storage_api.py#L256) |
+| 68 | EXP-QUE-001 | 5.1 | [Get Export Progress - Empty Queue](#test-get-export-progress---empty-queue) | [test_get_export_progress_empty_queue](api/test_export_api.py#L16) |
+| 69 | EXP-QUE-002 | 5.1 | [Get Export Progress - Active](#test-get-export-progress---active) | [test_get_export_progress_active](api/test_export_api.py#L53) |
+| 70 | EE-001 | 7 | [Complete Photo Capture Workflow](#ee-1-complete-photo-capture-workflow) | [test_ee_complete_photo_capture_workflow](ee/test_ee.py#L175) |
+| 71 | EE-002 | 7 | [Video Recording Workflow](#ee-2-video-recording-workflow) | [test_ee_video_recording_workflow](ee/test_ee.py#L279) |
+| 72 | EE-003 | 7 | [Spatial Mapping Workflow](#ee-3-spatial-mapping-workflow) | [test_ee_spatial_mapping_workflow](ee/test_ee.py#L385) |
+| 73 | EE-004 | 7 | [Storage Management Workflow](#ee-4-storage-management-workflow) | [test_ee_storage_management_workflow](ee/test_ee.py#L682) |
+| 74 | EE-005 | 7 | [Multi-Export Queue Management](#ee-5-multi-export-queue-management) | [test_ee_multi_export_queue_management](ee/test_ee.py#L767) |
+| 75 | EE-006 | 7 | [Preview Switching During Recording](#ee-6-preview-switching-during-recording) | [test_ee_preview_switching_during_recording](ee/test_ee.py#L858) |
+| 76 | LOAD-001 | 8 | [Rapid Capture Sequence](#load-1-rapid-capture-sequence) | [test_rapid_capture_sequence](test_performance.py#L26) |
+| 77 | LOAD-002 | 8 | [Long Recording Session](#load-2-long-recording-session) | [test_long_recording_session](test_performance.py#L131) |
+| 78 | LOAD-003 | 8 | [Large Export Queue](#load-3-large-export-queue) | [test_large_export_queue](test_performance.py#L252) |
+| 79 | UNIT-FIN-001 | 9.1 | [do_finalize Valid PCD](#test-do_finalize-with-valid-pcd-file) | [test_do_finalize_valid_pcd](units/test_finalize_mapping.py#L120) |
+| 80 | UNIT-FIN-002 | 9.1 | [do_finalize Missing Map](#test-do_finalize-with-missing-map-file) | [test_do_finalize_missing_map](units/test_finalize_mapping.py#L168) |
+| 81 | UNIT-FIN-003 | 9.1 | [do_finalize PLY Format](#test-do_finalize-ply-format) | [test_do_finalize_ply_format](units/test_finalize_mapping.py#L202) |
+| 82 | UNIT-FIN-004 | 9.1 | [do_finalize PCD Format](#test-do_finalize-pcd-format) | [test_do_finalize_pcd_format](units/test_finalize_mapping.py#L218) |
+| 83 | UNIT-FIN-005 | 9.1 | [load_pointcloud PCD File](#test-load_pointcloud-pcd-file) | [test_load_pcd_file](units/test_finalize_mapping.py#L238) |
+| 84 | UNIT-FIN-006 | 9.1 | [load_pointcloud Unsupported Format](#test-load_pointcloud-unsupported-format) | [test_load_unsupported_format](units/test_finalize_mapping.py#L253) |
+| 85 | UNIT-FIN-007 | 9.1 | [calculate_area_volume Box](#test-calculate_area_volume-box) | [test_calculate_area_volume_box](units/test_finalize_mapping.py#L269) |
+| 86 | UNIT-FIN-008 | 9.1 | [calculate_area_volume Empty](#test-calculate_area_volume-empty) | [test_calculate_area_volume_empty](units/test_finalize_mapping.py#L287) |
+| 87 | UNIT-ROS-001 | 9.2 | [StartEverything Node Creation](#test-starteverything-node-creation) | [test_start_everything_nodes](units/test_ros2_lifecycle.py#L126) |
+| 88 | UNIT-ROS-002 | 9.2 | [StartEverything Creates Dir](#test-starteverything-creates-artifact-directory) | [test_start_everything_artifact_dir](units/test_ros2_lifecycle.py#L188) |
+| 89 | UNIT-ROS-003 | 9.2 | [StopEverything Shutdown](#test-stopeverything-process-shutdown) | [test_stop_everything_shutdown](units/test_ros2_lifecycle.py#L221) |
+| 90 | UNIT-ROS-004 | 9.2 | [StopEverything Idempotent](#test-stopeverything-idempotency) | [test_stop_everything_idempotent](units/test_ros2_lifecycle.py#L280) |
+| 91 | UNIT-ROS-005 | 9.2 | [Start/Stop Cycle](#test-startstop-cycle) | [test_start_stop_cycle](units/test_ros2_lifecycle.py#L302) |
+| 92 | UNIT-IMU-001 | 9.3 | [Test Bag Available](#test-test-bag-available) | [test_bag_available](units/test_imu_monitor.py#L31) |
+| 93 | UNIT-IMU-002 | 9.3 | [IMU Monitor Stabilization](#test-imu-monitor-detects-stabilization) | [test_imu_monitor_detects_stabilization](units/test_imu_monitor.py#L42) |
+| 94 | UNIT-IMU-003 | 9.3 | [Status File Created on Start](#test-status-file-created-on-start) | [test_status_file_created_on_start](units/test_imu_monitor.py#L140) |
+| 95 | UNIT-IMU-004 | 9.3 | [MSTD Calculation Basic](#test-mstd-calculation-basic) | [test_calculate_std_basic](units/test_imu_monitor.py#L200) |
+| 96 | UNIT-IMU-005 | 9.3 | [MSTD Calculation Constant](#test-mstd-calculation-constant-values) | [test_calculate_std_constant_values](units/test_imu_monitor.py#L231) |
+| 97 | UNIT-IMU-006 | 9.3 | [MSTD Calculation High Variance](#test-mstd-calculation-high-variance) | [test_calculate_std_high_variance](units/test_imu_monitor.py#L251) |
 
 ---
 
-**Document Version:** 1.2
-**Last Updated:** 2025-12-17
+**Document Version:** 1.5
+**Last Updated:** 2025-12-18
 **Author:** Test Specification Document (Auto-generated from API analysis)
 **Changelog:**
+- v1.5: Added missing test specs (UNIT-FIN-004 to 007, UNIT-ROS-005, UNIT-IMU-002 to 005), renamed e2e to ee
+- v1.4: Added IMU monitor unit test with mstd detection (Section 9.3)
+- v1.3: Added unit tests for do_finalize, StartEverything, StopEverything (Section 9)
 - v1.2: Added test IDs and implementation links for all implemented tests
 - v1.1: Added camera state machine and concurrency tests with async/await implementation
