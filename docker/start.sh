@@ -122,6 +122,7 @@ docker run ${DOCKER_FLAGS} \
     -v /f/shared_data:/shared_data \
     -v /dmv_data:/dmv_data \
     --mount type=bind,source=/media/linh,target=/media/linh,bind-propagation=rshared \
+    -v /run/udev:/run/udev:ro \
     ${IMAGE_NAME} \
     ${CMD}
 

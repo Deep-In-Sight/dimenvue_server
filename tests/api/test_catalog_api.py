@@ -6,6 +6,8 @@ Tests catalog operations including:
 - Item metadata retrieval
 - Item deletion
 - Item renaming
+- Item export
+- Item files listing
 """
 
 import os
@@ -409,6 +411,66 @@ async def test_export_invalid_item(async_client, temp_catalog, mock_usb_device):
         f"/catalog/{fake_uuid}/export",
         json={"mountpoint": mock_usb_device.mount_point}
     )
+
+    assert response.status_code == 404
+    data = response.json()
+    assert "detail" in data
+
+
+# ==================== 3.6 Item Files (2 tests) ====================
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_get_item_files(async_client, temp_catalog, tmp_path):
+    """
+    Test 11: Get Item Files
+    GET /catalog/{uuid}/files -> 200 OK
+    Returns list of files in item directory
+    """
+    # Create an item with multiple files
+    item_path = tmp_path / "item_with_files"
+    item_path.mkdir(parents=True, exist_ok=True)
+    (item_path / "front.jpg").write_bytes(b"fake image data " * 100)
+    (item_path / "left.jpg").write_bytes(b"fake image data " * 100)
+    (item_path / "right.jpg").write_bytes(b"fake image data " * 100)
+    (item_path / "thumbnail.jpg").write_bytes(b"fake thumbnail " * 50)
+
+    uuid = temp_catalog.add_item("Image", str(item_path))
+    temp_catalog._dirty.wait(timeout=2)
+
+    # Get item files
+    response = await async_client.get(f"/catalog/{uuid}/files")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify structure
+    assert "files" in data
+    assert isinstance(data["files"], list)
+
+    # Verify files are present (sorted alphabetically)
+    assert "front.jpg" in data["files"]
+    assert "left.jpg" in data["files"]
+    assert "right.jpg" in data["files"]
+    assert "thumbnail.jpg" in data["files"]
+    assert len(data["files"]) == 4
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_get_files_nonexistent_item(async_client, temp_catalog):
+    """
+    Test 12: Get Files for Non-Existent Item
+    GET /catalog/{invalid-uuid}/files -> 404 Not Found
+    """
+    fake_uuid = "00000000-0000-0000-0000-000000000000"
+
+    # Ensure item doesn't exist
+    catalog_data = temp_catalog.get_data()
+    assert fake_uuid not in catalog_data["items"]
+
+    # Try to get files
+    response = await async_client.get(f"/catalog/{fake_uuid}/files")
 
     assert response.status_code == 404
     data = response.json()

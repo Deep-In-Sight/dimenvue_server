@@ -21,7 +21,7 @@ def gen_thumbnail_factory(file_path: str, size: tuple[int, int] = (256, 256)) ->
     Supports: .jpg, .jpeg, .png, .mp4, .mov, .avi
     """
     ext = os.path.splitext(file_path)[1].lower()
-    dst_name = os.path.dirname(file_path) + "thumbnail.jpg"
+    dst_name = os.path.join(os.path.dirname(file_path), "thumbnail.jpg")
     if ext in (".jpg", ".jpeg", ".png"):
         img = gen_thumbnail_image(file_path, size)
     elif ext in (".mp4", ".mov", ".avi"):

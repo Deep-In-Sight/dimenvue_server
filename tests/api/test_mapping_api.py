@@ -5,11 +5,12 @@ Tests the mapping lifecycle, state management, concurrency, and settings.
 Uses mocked ROS2 functions (StartEverything, StopEverything, GetInitStatus)
 and mocked finalize_mapping.do_finalize.
 
-Total tests: 25
+Total tests: 27
 - 2.1 Mapping Lifecycle: 13 tests (Tests 1-13)
 - 2.2 Mapping State: 5 tests (Tests 14-18)
 - 2.3 Mapping Concurrency: 3 tests (Tests 19-21)
 - 2.4 Mapping Settings: 4 tests (Tests 22-25)
+- 2.5 Scan Name Prefix: 2 tests (Tests 26-27)
 """
 
 import asyncio
@@ -868,3 +869,108 @@ async def test_invalid_setting(async_client: AsyncClient):
         # preview_voxel_size should be updated to index 0 (value 5)
         # Options are [5, 10, 15], so value 5 = index 0
         assert settings["preview_voxel_size"]["current_selection"] == 0
+
+
+# ==================== 2.5 Scan Name Prefix (2 tests) ====================
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_start_mapping_with_name_prefix(async_client: AsyncClient):
+    """
+    Test 26: Start Mapping with Name Prefix
+    PUT /mappingApp/start with {"name_prefix": "MyProject"} → 200 OK
+    Catalog item should be named "MyProject_1"
+    """
+    with patch('mapping_app.StartEverything', new_callable=AsyncMock), \
+         patch('mapping_app.StopEverything', new_callable=AsyncMock), \
+         patch('mapping_app.GetInitStatus') as mock_status, \
+         patch('mapping_app.do_finalize'):
+
+        # Start mapping with name prefix
+        mock_status.return_value = "UNKNOWN"
+        response = await async_client.put(
+            "/mappingApp/start",
+            json={"name_prefix": "TestProject"}
+        )
+
+        # Expects: 200 OK
+        assert response.status_code == 200
+        data = response.json()
+        assert data["state"] == "starting"
+
+        # Transition to RUNNING
+        mock_status.return_value = "TRACKING"
+        await asyncio.sleep(1.5)
+
+        mock_status.return_value = "STABILIZED"
+        await asyncio.sleep(1.5)
+
+        # Stop mapping to trigger catalog add
+        stop_response = await async_client.put("/mappingApp/stop")
+        assert stop_response.status_code == 200
+
+        # Verify catalog item was created with prefix
+        catalog_response = await async_client.get("/catalog")
+        assert catalog_response.status_code == 200
+        catalog_data = catalog_response.json()
+
+        # Find the item with prefix "TestProject_"
+        items = catalog_data.get("items", {})
+        prefixed_items = [
+            item for item in items.values()
+            if item["name"].startswith("TestProject_")
+        ]
+        assert len(prefixed_items) == 1
+        assert prefixed_items[0]["name"] == "TestProject_1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_start_mapping_incremental_naming(async_client: AsyncClient):
+    """
+    Test 27: Incremental Naming with Same Prefix
+    Multiple scans with same prefix → "Scan_1", "Scan_2", etc.
+    """
+    with patch('mapping_app.StartEverything', new_callable=AsyncMock), \
+         patch('mapping_app.StopEverything', new_callable=AsyncMock), \
+         patch('mapping_app.GetInitStatus') as mock_status, \
+         patch('mapping_app.do_finalize'):
+
+        # Get initial catalog count
+        initial_catalog = await async_client.get("/catalog")
+        initial_items = initial_catalog.json().get("items", {})
+
+        # Perform 2 mapping cycles with same prefix
+        for i in range(2):
+            # Start mapping with prefix
+            mock_status.return_value = "UNKNOWN"
+            start_response = await async_client.put(
+                "/mappingApp/start",
+                json={"name_prefix": "IncrementalTest"}
+            )
+            assert start_response.status_code == 200
+
+            # Transition to RUNNING
+            mock_status.return_value = "TRACKING"
+            await asyncio.sleep(1.5)
+
+            mock_status.return_value = "STABILIZED"
+            await asyncio.sleep(1.5)
+
+            # Stop mapping
+            stop_response = await async_client.put("/mappingApp/stop")
+            assert stop_response.status_code == 200
+
+        # Verify catalog has items with incremental names
+        final_catalog = await async_client.get("/catalog")
+        items = final_catalog.json().get("items", {})
+
+        # Find items with prefix
+        prefixed_items = [
+            item["name"] for item in items.values()
+            if item["name"].startswith("IncrementalTest_")
+        ]
+
+        assert "IncrementalTest_1" in prefixed_items
+        assert "IncrementalTest_2" in prefixed_items

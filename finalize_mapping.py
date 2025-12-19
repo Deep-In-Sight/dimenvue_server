@@ -12,6 +12,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import numpy as np
 import laspy
 import open3d as o3d
@@ -53,16 +54,63 @@ def load_pointcloud(file_path):
         raise e
 
 
-def generate_thumbnail(points, output_path, width=640, height=480):
+def remove_outliers(points, nb_neighbors=20, std_ratio=2.0):
+    """
+    Remove statistical outliers from point cloud.
+
+    Args:
+        points: numpy array of shape [N, 3]
+        nb_neighbors: number of neighbors to analyze for each point
+        std_ratio: standard deviation ratio threshold
+
+    Returns:
+        filtered points as numpy array
+    """
+    if len(points) < nb_neighbors:
+        return points
+
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(points)
+
+    # Statistical outlier removal
+    filtered_pcd, inlier_indices = pcd.remove_statistical_outlier(
+        nb_neighbors=nb_neighbors,
+        std_ratio=std_ratio
+    )
+
+    filtered_points = np.asarray(filtered_pcd.points)
+    removed_count = len(points) - len(filtered_points)
+    if removed_count > 0:
+        print(f"Removed {removed_count} outliers ({100*removed_count/len(points):.1f}%)")
+
+    return filtered_points
+
+
+def generate_thumbnail(points, output_path, width=640, height=480, max_points=500000):
     """
     Generate thumbnail of the point cloud. (+z up)
     Look at the center from an angle at a distance.
     Apply JET colormap based on Z values.
+
+    Args:
+        points: numpy array of shape [N, 3]
+        output_path: path to save thumbnail
+        width, height: thumbnail dimensions
+        max_points: maximum points to render (downsample if exceeded)
     """
     try:
         if len(points) == 0:
             print("Warning: Empty point cloud, cannot generate thumbnail")
             return False
+
+        # Downsample if too many points (for faster outlier removal and rendering)
+        if len(points) > max_points:
+            print(f"Downsampling from {len(points)} to {max_points} points for thumbnail")
+            indices = np.random.choice(len(points), max_points, replace=False)
+            points = points[indices]
+
+        # Remove outliers for better visualization
+        points = remove_outliers(points, nb_neighbors=20, std_ratio=0.8)
 
         # Use Open3D for visualization and rendering
         pcd = o3d.geometry.PointCloud()
@@ -86,27 +134,71 @@ def generate_thumbnail(points, output_path, width=640, height=480):
         # Use OffscreenRenderer for thumbnail generation
         renderer = o3d.visualization.rendering.OffscreenRenderer(width, height)
 
+        # Set dark background to match dark theme
+        renderer.scene.set_background([0.07, 0.09, 0.13, 1.0])  # #121820
+
         # Compute bounding box to position camera appropriately
         bbox = pcd.get_axis_aligned_bounding_box()
         center = bbox.get_center()
         extent = bbox.get_extent()
         max_extent = max(extent)
 
+        # Get oriented bounding box for camera alignment
+        obb = pcd.get_oriented_bounding_box()
+
         # Set up the scene
         renderer.scene.add_geometry(
             "pointcloud", pcd, o3d.visualization.rendering.MaterialRecord())
 
-        # Set camera position (looking from above at an angle)
-        camera_distance = max_extent * 2.5
-        camera_pos = center + camera_distance * np.array([0.5, 0.5, 1.0])
+        obb_center = obb.center
+        obb_extent = obb.extent
+        obb_R = obb.R  # Rotation matrix (columns are OBB axes)
+
+        # OBB extent is [x, y, z] in OBB local frame
+        # Assuming OBB is flat on XY plane, Z is smallest (height)
+        # Camera looks down from above (along -Z of OBB)
+
+        # Calculate camera distance to fit OBB in frame
+        # Vertical FOV, so we need to fit the shorter OBB axis vertically
+        # and longer axis horizontally (accounting for aspect ratio)
+        fov = 60.0  # degrees
+        aspect_ratio = width / height
+
+        # Shorter axis goes vertical, longer goes horizontal
+        if obb_extent[0] < obb_extent[1]:
+            vertical_extent = obb_extent[0]
+            horizontal_extent = obb_extent[1]
+        else:
+            vertical_extent = obb_extent[1]
+            horizontal_extent = obb_extent[0]
+
+        # Check which dimension is limiting (vertical or horizontal)
+        # For vertical FOV: distance = (extent/2) / tan(fov/2)
+        # For horizontal: distance = (extent/2) / tan(fov/2 * aspect_ratio) -- approximate
+        fov_rad = np.radians(fov)
+        dist_for_vertical = (vertical_extent / 2) / np.tan(fov_rad / 2)
+        dist_for_horizontal = (horizontal_extent / 2) / np.tan(fov_rad / 2 * aspect_ratio)
+
+        camera_distance = max(dist_for_vertical, dist_for_horizontal) * 1.1  # 10% margin
+
+        # Camera position: above the center, looking down along OBB's Z axis
+        obb_z_axis = obb_R[:, 2]  # Third column is Z axis
+        camera_pos = obb_center + camera_distance * obb_z_axis
+
+        # Up vector: use the shorter of X or Y axis of OBB
+        # This aligns the shorter dimension with vertical in the image
+        obb_x_axis = obb_R[:, 0]
+        obb_y_axis = obb_R[:, 1]
+        if obb_extent[0] < obb_extent[1]:
+            up_vector = obb_x_axis  # X is shorter, use as up
+        else:
+            up_vector = obb_y_axis  # Y is shorter, use as up
 
         # Set up camera parameters
-        renderer.scene.camera.look_at(center, camera_pos, [0, 0, 1])  # Z up
-
-        # Set field of view to fit the point cloud nicely
-        fov = 60.0  # degrees
+        renderer.scene.camera.look_at(obb_center, camera_pos, up_vector)
         renderer.scene.camera.set_projection(
-            fov, width / height, 0.1, camera_distance * 3)
+            fov, width / height, 0.1, camera_distance * 4,
+            o3d.visualization.rendering.Camera.FovType.Vertical)
 
         # Render and save the image
         image = renderer.render_to_image()
@@ -119,15 +211,66 @@ def generate_thumbnail(points, output_path, width=640, height=480):
         print(f"Error generating thumbnail: {e}")
 
 
-def calculate_area_volume(points):
+def generate_preview_cloud(points, output_path, voxel_size=0.1):
+    """
+    Generate a voxelized preview point cloud for faster loading in viewer.
+
+    Args:
+        points: numpy array of shape [N, 3]
+        output_path: path to save preview cloud
+        voxel_size: voxel size in meters for downsampling
+    """
+    try:
+        if len(points) == 0:
+            print("Warning: Empty point cloud, cannot generate preview")
+            return False
+
+        # Create Open3D point cloud
+        pcd = o3d.geometry.PointCloud()
+        pcd.points = o3d.utility.Vector3dVector(points)
+
+        # Voxel downsample
+        pcd_down = pcd.voxel_down_sample(voxel_size)
+
+        # Remove outliers from preview
+        pcd_clean, _ = pcd_down.remove_statistical_outlier(nb_neighbors=20, std_ratio=0.8)
+
+        # Save to file
+        o3d.io.write_point_cloud(output_path, pcd_clean)
+
+        original_count = len(points)
+        preview_count = len(pcd_clean.points)
+        print(f"Preview cloud generated: {output_path}")
+        print(f"  Original: {original_count:,} points -> Preview: {preview_count:,} points ({100*preview_count/original_count:.1f}%)")
+
+        return True
+
+    except Exception as e:
+        print(f"Error generating preview cloud: {e}")
+        return False
+
+
+def calculate_area_volume(points, max_points=100000):
     """
     Calculate the area covered by the point cloud in square meters.
     Take the OBB of the XY projection and compute its area.
+
+    Args:
+        points: numpy array of shape [N, 3]
+        max_points: maximum points for OBB calculation (downsample if exceeded)
     """
     try:
         if len(points) == 0:
             print("Warning: Empty point cloud, cannot calculate area")
             return 0.0
+
+        # Downsample for faster processing
+        if len(points) > max_points:
+            indices = np.random.choice(len(points), max_points, replace=False)
+            points = points[indices]
+
+        # Remove outliers for accurate area calculation (aggressive)
+        points = remove_outliers(points, nb_neighbors=20, std_ratio=0.8)
 
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points)
@@ -168,16 +311,19 @@ def calculate_tree_size(dir_path):
         print("du command failed, exception: ")
 
 
-def do_finalize(map_dir, map_ext):
+def do_finalize(map_dir, map_ext, preview_voxel_size=0.05):
     """
     Finalize mapping results by generating thumbnail and metadata.
     Args:
         map_dir: Directory containing mapping artifacts
         map_ext: Point cloud file format (ply, pcd, las, laz)
+        preview_voxel_size: Voxel size in meters for preview cloud (default 0.05m = 5cm)
     Generates:
         - map_dir/thumbnail.png
+        - map_dir/map_result_preview.<map_ext>
         - map_dir/map_metadata.json
     """
+    total_start = time.time()
 
     # Find the map result file
     map_file = os.path.join(map_dir, f"map_result.{map_ext}")
@@ -189,15 +335,30 @@ def do_finalize(map_dir, map_ext):
     print(f"Processing map file: {map_file}")
 
     # Load point cloud
+    t0 = time.time()
     points = load_pointcloud(map_file)
+    print(f"[PROFILE] load_pointcloud: {time.time() - t0:.2f}s")
 
     # Generate thumbnail
-    thumbnail_path = os.path.join(map_dir, "thumbnail.png")
+    t0 = time.time()
+    thumbnail_path = os.path.join(map_dir, "thumbnail.jpg")
     generate_thumbnail(points, thumbnail_path)
+    print(f"[PROFILE] generate_thumbnail: {time.time() - t0:.2f}s")
+
+    # Generate preview cloud (voxelized for fast loading)
+    t0 = time.time()
+    preview_path = os.path.join(map_dir, f"map_result_preview.{map_ext}")
+    generate_preview_cloud(points, preview_path, voxel_size=preview_voxel_size)
+    print(f"[PROFILE] generate_preview_cloud: {time.time() - t0:.2f}s")
 
     # Calculate metadata
+    t0 = time.time()
     total_data_size = calculate_tree_size(map_dir)
+    print(f"[PROFILE] calculate_tree_size: {time.time() - t0:.2f}s")
+
+    t0 = time.time()
     area, volume = calculate_area_volume(points)
+    print(f"[PROFILE] calculate_area_volume: {time.time() - t0:.2f}s")
 
     # Write metadata
     metadata = {
@@ -215,6 +376,8 @@ def do_finalize(map_dir, map_ext):
     except Exception as e:
         print(f"Error writing metadata: {e}")
 
+    print(f"[PROFILE] Total finalization: {time.time() - total_start:.2f}s")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Finalize mapping results')
@@ -222,10 +385,9 @@ if __name__ == '__main__':
         'artifact_dir', help='Directory containing mapping artifacts')
     parser.add_argument('--file-format', default='ply',
                         help='Point cloud file format (ply, pcd, las, laz)')
+    parser.add_argument('--voxel-size', type=float, default=0.1,
+                        help='Voxel size in meters for preview cloud (default: 0.1)')
 
     args = parser.parse_args()
 
-    artifact_dir = args.artifact_dir
-    file_format = args.file_format
-
-    do_finalize(artifact_dir, file_format)
+    do_finalize(args.artifact_dir, args.file_format, args.voxel_size)

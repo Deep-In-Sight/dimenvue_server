@@ -61,8 +61,9 @@ class MappingApp:
         self.state = MappingState.IDLE
         self._state_lock = asyncio.Lock()
         self._process_error = None
-        
+
         self._polling_task = None
+        self._name_prefix: Optional[str] = None  # Prefix for catalog item name
 
 
     def _load_settings(self):
@@ -212,11 +213,16 @@ class MappingApp:
         await StartEverything(file_format, self.artifact_dir)
         self._polling_task = asyncio.create_task(self._poll_init_status())
 
-    async def start(self):
+    async def start(self, name_prefix: Optional[str] = None):
         """
         Start the mapping process by launching ROS2 Fast-LIO nodes.
 
         State transition: IDLE → STARTING → INITIALIZING → RUNNING
+
+        Args:
+            name_prefix: Optional prefix for catalog item name. If provided,
+                         catalog will generate names like "prefix_1", "prefix_2".
+                         If None, uses timestamp-based naming.
 
         Returns:
             dict: Status message
@@ -235,9 +241,10 @@ class MappingApp:
 
             self.state = MappingState.STARTING
 
+        self._name_prefix = name_prefix
         self.active_settings = self.settings.copy()
         await self._do_start()
-            
+
         return {"details": "started", "state": self.state.value}
 
     def get_init_status(self):
@@ -256,11 +263,12 @@ class MappingApp:
 
         # Run finalization script
         file_format = self._get_setting_value("file_format").lower()
+        preview_voxel_size = self._get_setting_value("preview_voxel_size") / 100.0  # cm to meters
 
-        await asyncio.to_thread(do_finalize, self.artifact_dir, file_format)
+        await asyncio.to_thread(do_finalize, self.artifact_dir, file_format, preview_voxel_size)
 
         if self.catalog:
-            self.catalog.add_item("Scan", self.artifact_dir)
+            self.catalog.add_item("Scan", self.artifact_dir, name_prefix=self._name_prefix)
 
         async with self._state_lock:
             self.state = MappingState.IDLE

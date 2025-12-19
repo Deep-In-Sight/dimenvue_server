@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from camera_app import MultiCamApp
@@ -35,6 +36,15 @@ async def lifespan(app: FastAPI):
 
 # slamApp = SlamApp()
 app = FastAPI(lifespan=lifespan)
+
+# Enable CORS for frontend access
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Serve generated artifacts for convenience
 app.mount("/dmv_data", StaticFiles(directory=str(OUTPUT_DIR)))
@@ -70,6 +80,31 @@ def rename_item(uuid: UUID, req: dict[str, Any]):
         return new_item
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@app.get("/catalog/{uuid:uuid}/files")
+def get_item_files(uuid: UUID):
+    """
+    Get list of files for a catalog item.
+
+    Returns:
+        200: {"files": ["front.jpg", "left.jpg", "right.jpg", "thumbnail.jpg"]}
+        404: Item not found
+    """
+    catalog_data = catalog.get_data()
+    item_uuid = str(uuid)
+
+    if item_uuid not in catalog_data.get("items", {}):
+        raise HTTPException(status_code=404, detail=f"Item {uuid} not found")
+
+    item = catalog_data["items"][item_uuid]
+    item_path = item["url"]
+
+    if not os.path.isdir(item_path):
+        raise HTTPException(status_code=404, detail=f"Item directory not found")
+
+    files = os.listdir(item_path)
+    return {"files": sorted(files)}
 
 
 @app.put("/cameraApp/init")
@@ -306,10 +341,18 @@ def clear_export_queue():
     return {"status": "cleared"}
 
 
+class StartMappingRequest(BaseModel):
+    name_prefix: Optional[str] = None
+
+
 @app.put("/mappingApp/start")
-async def start_mapping():
+async def start_mapping(req: StartMappingRequest = Body(default=StartMappingRequest())):
     """
     Start the mapping process by launching ROS2 Fast-LIO.
+
+    Args:
+        req: Request body with optional name_prefix for the scan name.
+             If not provided, uses timestamp-based naming.
 
     Returns:
         200: Mapping started or already running
@@ -317,7 +360,7 @@ async def start_mapping():
         500: Failed to start mapping
     """
     try:
-        resp = await mappingApp.start()
+        resp = await mappingApp.start(name_prefix=req.name_prefix)
         return resp
     except RuntimeError as e:
         # Mapping is in invalid state for start

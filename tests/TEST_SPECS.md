@@ -685,13 +685,46 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 ---
 
+### 2.5 Scan Name Prefix
+
+#### Test: Start Mapping with Name Prefix
+- **Test ID:** `MAP-PREFIX-001`
+- **Implementation:** [test_start_mapping_with_name_prefix](api/test_mapping_api.py#L879)
+- **Given:** Mapping is idle, no items with prefix "TestProject" exist
+- **Action:** `PUT /mappingApp/start` with body:
+  ```json
+  {
+    "name_prefix": "TestProject"
+  }
+  ```
+  Then complete the mapping cycle (wait for RUNNING, then stop)
+- **Expects:**
+  - Status: 200 OK
+  - Mapping starts successfully
+  - After stop, catalog contains item named "TestProject_1"
+  - Item type is "Scan"
+
+#### Test: Incremental Naming with Same Prefix
+- **Test ID:** `MAP-PREFIX-002`
+- **Implementation:** [test_start_mapping_incremental_naming](api/test_mapping_api.py#L930)
+- **Given:** Mapping is idle
+- **Action:**
+  1. Start and stop mapping with `{"name_prefix": "IncrementalTest"}`
+  2. Start and stop mapping again with same prefix
+- **Expects:**
+  - First scan named "IncrementalTest_1"
+  - Second scan named "IncrementalTest_2"
+  - Incremental numbering continues correctly
+
+---
+
 ## 3. Catalog API Integration Tests
 
 ### 3.1 Catalog Retrieval
 
 #### Test: Get Full Catalog
 - **Test ID:** `CAT-RET-001`
-- **Implementation:** [test_get_full_catalog](api/test_catalog_api.py#L22)
+- **Implementation:** [test_get_full_catalog](api/test_catalog_api.py#L24)
 - **Given:** Catalog contains 5 items (2 images, 2 videos, 1 scan)
 - **Action:** `GET /catalog`
 - **Expects:**
@@ -702,7 +735,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Empty Catalog
 - **Test ID:** `CAT-RET-002`
-- **Implementation:** [test_get_empty_catalog](api/test_catalog_api.py#L99)
+- **Implementation:** [test_get_empty_catalog](api/test_catalog_api.py#L101)
 - **Given:** Catalog is empty (no items)
 - **Action:** `GET /catalog`
 - **Expects:**
@@ -715,7 +748,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Image Metadata
 - **Test ID:** `CAT-META-001`
-- **Implementation:** [test_get_image_metadata](api/test_catalog_api.py#L132)
+- **Implementation:** [test_get_image_metadata](api/test_catalog_api.py#L134)
 - **Given:** Catalog contains an image item with UUID `abc-123`
 - **Action:** `GET /catalog/metadata/{file_path}`
 - **Expects:**
@@ -724,7 +757,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Get Metadata for Non-Existent File
 - **Test ID:** `CAT-META-002`
-- **Implementation:** [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L162)
+- **Implementation:** [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L164)
 - **Given:** Catalog does not contain file at path
 - **Action:** `GET /catalog/metadata/invalid/path.jpg`
 - **Expects:**
@@ -736,7 +769,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Delete Item by UUID
 - **Test ID:** `CAT-DEL-001`
-- **Implementation:** [test_delete_item_by_uuid](api/test_catalog_api.py#L181)
+- **Implementation:** [test_delete_item_by_uuid](api/test_catalog_api.py#L183)
 - **Given:** Catalog contains item with UUID `abc-123`
 - **Action:** `PUT /catalog/abc-123/delete`
 - **Expects:**
@@ -747,7 +780,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Delete Non-Existent Item
 - **Test ID:** `CAT-DEL-002`
-- **Implementation:** [test_delete_nonexistent_item](api/test_catalog_api.py#L225)
+- **Implementation:** [test_delete_nonexistent_item](api/test_catalog_api.py#L227)
 - **Given:** Catalog does not contain UUID `invalid-uuid`
 - **Action:** `PUT /catalog/invalid-uuid/delete`
 - **Expects:**
@@ -759,7 +792,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Rename Item
 - **Test ID:** `CAT-REN-001`
-- **Implementation:** [test_rename_item](api/test_catalog_api.py#L245)
+- **Implementation:** [test_rename_item](api/test_catalog_api.py#L247)
 - **Given:** Catalog contains item with UUID `abc-123` and name "Scan001"
 - **Action:** `PUT /catalog/abc-123/rename` with body:
   ```json
@@ -774,7 +807,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Rename with Duplicate Name
 - **Test ID:** `CAT-REN-002`
-- **Implementation:** [test_rename_with_duplicate_name](api/test_catalog_api.py#L294)
+- **Implementation:** [test_rename_with_duplicate_name](api/test_catalog_api.py#L296)
 - **Given:**
   - Item `abc-123` named "Scan001"
   - Item `def-456` already named "Scan002"
@@ -789,7 +822,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Export Item to USB
 - **Test ID:** `CAT-EXP-001`
-- **Implementation:** [test_export_item_to_usb](api/test_catalog_api.py#L358)
+- **Implementation:** [test_export_item_to_usb](api/test_catalog_api.py#L360)
 - **Given:**
   - Catalog contains item `abc-123`
   - USB device mounted at `/media/usb0`
@@ -806,11 +839,33 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Export Invalid Item
 - **Test ID:** `CAT-EXP-002`
-- **Implementation:** [test_export_invalid_item](api/test_catalog_api.py#L397)
+- **Implementation:** [test_export_invalid_item](api/test_catalog_api.py#L399)
 - **Given:** Catalog doesn't contain item `abc-123`
 - **Action:** `PUT /catalog/abc-123/export`
 - **Expects:**
   - Status: 404 not found
+
+---
+
+### 3.6 Item Files
+
+#### Test: Get Item Files
+- **Test ID:** `CAT-FILE-001`
+- **Implementation:** [test_get_item_files](api/test_catalog_api.py#L424)
+- **Given:** Catalog contains item with UUID `abc-123` containing files (front.jpg, left.jpg, right.jpg, thumbnail.jpg)
+- **Action:** `GET /catalog/abc-123/files`
+- **Expects:**
+  - Status: 200 OK
+  - Response: `{"files": ["front.jpg", "left.jpg", "right.jpg", "thumbnail.jpg"]}`
+  - Files list is sorted alphabetically
+
+#### Test: Get Files for Non-Existent Item
+- **Test ID:** `CAT-FILE-002`
+- **Implementation:** [test_get_files_nonexistent_item](api/test_catalog_api.py#L461)
+- **Given:** Catalog does not contain UUID `invalid-uuid`
+- **Action:** `GET /catalog/invalid-uuid/files`
+- **Expects:**
+  - Status: 404 Not Found
 
 ---
 
@@ -1003,7 +1058,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Map Environment, Save Scan, Export
 - **Test ID:** `EE-003`
-- **Implementation:** [test_ee_spatial_mapping_workflow](ee/test_ee.py#L385)
+- **Implementation:** [test_ee_spatial_mapping_workflow](ee/test_ee.py#L426)
 - **Given:**
   - ROS2 workspace available at `/ros2_ws` with `fast_lio` and `point_cloud_bridge` packages installed
   - Development mode enabled (rosbag data available at `/shared_data/office_sim_bag/`)
@@ -1051,7 +1106,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Fill Storage, Delete Items, Format
 - **Test ID:** `EE-004`
-- **Implementation:** [test_ee_storage_management_workflow](ee/test_ee.py#L682)
+- **Implementation:** [test_ee_storage_management_workflow](ee/test_ee.py#L723)
 - **Given:** Server is running
 - **Action:**
   1. Capture 10 photos
@@ -1073,7 +1128,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Queue Multiple Exports, Monitor Progress
 - **Test ID:** `EE-005`
-- **Implementation:** [test_ee_multi_export_queue_management](ee/test_ee.py#L767)
+- **Implementation:** [test_ee_multi_export_queue_management](ee/test_ee.py#L808)
 - **Given:**
   - Catalog has 5 items
   - USB device connected
@@ -1096,7 +1151,7 @@ IDLE → STARTING → INITIALIZING → RUNNING → STOPPING → IDLE
 
 #### Test: Switch Preview While Recording
 - **Test ID:** `EE-006`
-- **Implementation:** [test_ee_preview_switching_during_recording](ee/test_ee.py#L858)
+- **Implementation:** [test_ee_preview_switching_during_recording](ee/test_ee.py#L899)
 - **Given:** Camera initialized and recording
 - **Action:**
   1. `PUT /cameraApp/recordStart`
@@ -1540,59 +1595,64 @@ Tests for `ros2/imu_monitor.py` - IMU stabilization detection using moving stand
 | 49 | MAP-SET-002 | 2.4 | [Update Mapping Settings (Idle)](#test-update-mapping-settings-idle-state) | [test_update_mapping_settings_idle](api/test_mapping_api.py#L740) |
 | 50 | MAP-SET-003 | 2.4 | [Update Settings During Mapping](#test-update-settings-during-mapping) | [test_update_settings_during_mapping](api/test_mapping_api.py#L778) |
 | 51 | MAP-SET-004 | 2.4 | [Invalid Setting](#test-invalid-setting) | [test_invalid_setting](api/test_mapping_api.py#L831) |
-| 52 | CAT-RET-001 | 3.1 | [Get Full Catalog](#test-get-full-catalog) | [test_get_full_catalog](api/test_catalog_api.py#L22) |
-| 53 | CAT-RET-002 | 3.1 | [Get Empty Catalog](#test-get-empty-catalog) | [test_get_empty_catalog](api/test_catalog_api.py#L99) |
-| 54 | CAT-META-001 | 3.2 | [Get Image Metadata](#test-get-image-metadata) | [test_get_image_metadata](api/test_catalog_api.py#L132) |
-| 55 | CAT-META-002 | 3.2 | [Get Metadata for Non-Existent File](#test-get-metadata-for-non-existent-file) | [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L162) |
-| 56 | CAT-DEL-001 | 3.3 | [Delete Item by UUID](#test-delete-item-by-uuid) | [test_delete_item_by_uuid](api/test_catalog_api.py#L181) |
-| 57 | CAT-DEL-002 | 3.3 | [Delete Non-Existent Item](#test-delete-non-existent-item) | [test_delete_nonexistent_item](api/test_catalog_api.py#L225) |
-| 58 | CAT-REN-001 | 3.4 | [Rename Item](#test-rename-item) | [test_rename_item](api/test_catalog_api.py#L245) |
-| 59 | CAT-REN-002 | 3.4 | [Rename with Duplicate Name](#test-rename-with-duplicate-name) | [test_rename_with_duplicate_name](api/test_catalog_api.py#L294) |
-| 60 | CAT-EXP-001 | 3.5 | [Export Item to USB](#test-export-item-to-usb) | [test_export_item_to_usb](api/test_catalog_api.py#L358) |
-| 61 | CAT-EXP-002 | 3.5 | [Export Invalid Item](#test-export-invalid-item) | [test_export_invalid_item](api/test_catalog_api.py#L397) |
-| 62 | STO-REM-001 | 4.1 | [List USB Devices](#test-list-usb-devices) | [test_list_usb_devices_with_usb_connected](api/test_storage_api.py#L21) |
-| 63 | STO-REM-002 | 4.1 | [No USB Devices](#test-no-usb-devices) | [test_list_usb_devices_with_no_usb](api/test_storage_api.py#L77) |
-| 64 | STO-INT-001 | 4.2 | [Get Internal Storage Usage](#test-get-internal-storage-usage) | [test_get_internal_storage_usage](api/test_storage_api.py#L96) |
-| 65 | STO-INT-002 | 4.2 | [Format Internal Storage](#test-format-internal-storage) | [test_format_internal_storage](api/test_storage_api.py#L159) |
-| 66 | STO-EXT-001 | 4.3 | [Format External Storage](#test-format-external-storage) | [test_format_external_storage](api/test_storage_api.py#L207) |
-| 67 | STO-EXT-002 | 4.3 | [Format Non-Existent Device](#test-format-non-existent-device) | [test_format_external_storage_non_existent_device](api/test_storage_api.py#L256) |
-| 68 | EXP-QUE-001 | 5.1 | [Get Export Progress - Empty Queue](#test-get-export-progress---empty-queue) | [test_get_export_progress_empty_queue](api/test_export_api.py#L16) |
-| 69 | EXP-QUE-002 | 5.1 | [Get Export Progress - Active](#test-get-export-progress---active) | [test_get_export_progress_active](api/test_export_api.py#L53) |
-| 70 | EE-001 | 7 | [Complete Photo Capture Workflow](#ee-1-complete-photo-capture-workflow) | [test_ee_complete_photo_capture_workflow](ee/test_ee.py#L175) |
-| 71 | EE-002 | 7 | [Video Recording Workflow](#ee-2-video-recording-workflow) | [test_ee_video_recording_workflow](ee/test_ee.py#L279) |
-| 72 | EE-003 | 7 | [Spatial Mapping Workflow](#ee-3-spatial-mapping-workflow) | [test_ee_spatial_mapping_workflow](ee/test_ee.py#L385) |
-| 73 | EE-004 | 7 | [Storage Management Workflow](#ee-4-storage-management-workflow) | [test_ee_storage_management_workflow](ee/test_ee.py#L682) |
-| 74 | EE-005 | 7 | [Multi-Export Queue Management](#ee-5-multi-export-queue-management) | [test_ee_multi_export_queue_management](ee/test_ee.py#L767) |
-| 75 | EE-006 | 7 | [Preview Switching During Recording](#ee-6-preview-switching-during-recording) | [test_ee_preview_switching_during_recording](ee/test_ee.py#L858) |
-| 76 | LOAD-001 | 8 | [Rapid Capture Sequence](#load-1-rapid-capture-sequence) | [test_rapid_capture_sequence](test_performance.py#L26) |
-| 77 | LOAD-002 | 8 | [Long Recording Session](#load-2-long-recording-session) | [test_long_recording_session](test_performance.py#L131) |
-| 78 | LOAD-003 | 8 | [Large Export Queue](#load-3-large-export-queue) | [test_large_export_queue](test_performance.py#L252) |
-| 79 | UNIT-FIN-001 | 9.1 | [do_finalize Valid PCD](#test-do_finalize-with-valid-pcd-file) | [test_do_finalize_valid_pcd](units/test_finalize_mapping.py#L120) |
-| 80 | UNIT-FIN-002 | 9.1 | [do_finalize Missing Map](#test-do_finalize-with-missing-map-file) | [test_do_finalize_missing_map](units/test_finalize_mapping.py#L168) |
-| 81 | UNIT-FIN-003 | 9.1 | [do_finalize PLY Format](#test-do_finalize-ply-format) | [test_do_finalize_ply_format](units/test_finalize_mapping.py#L202) |
-| 82 | UNIT-FIN-004 | 9.1 | [do_finalize PCD Format](#test-do_finalize-pcd-format) | [test_do_finalize_pcd_format](units/test_finalize_mapping.py#L218) |
-| 83 | UNIT-FIN-005 | 9.1 | [load_pointcloud PCD File](#test-load_pointcloud-pcd-file) | [test_load_pcd_file](units/test_finalize_mapping.py#L238) |
-| 84 | UNIT-FIN-006 | 9.1 | [load_pointcloud Unsupported Format](#test-load_pointcloud-unsupported-format) | [test_load_unsupported_format](units/test_finalize_mapping.py#L253) |
-| 85 | UNIT-FIN-007 | 9.1 | [calculate_area_volume Box](#test-calculate_area_volume-box) | [test_calculate_area_volume_box](units/test_finalize_mapping.py#L269) |
-| 86 | UNIT-FIN-008 | 9.1 | [calculate_area_volume Empty](#test-calculate_area_volume-empty) | [test_calculate_area_volume_empty](units/test_finalize_mapping.py#L287) |
-| 87 | UNIT-ROS-001 | 9.2 | [StartEverything Node Creation](#test-starteverything-node-creation) | [test_start_everything_nodes](units/test_ros2_lifecycle.py#L126) |
-| 88 | UNIT-ROS-002 | 9.2 | [StartEverything Creates Dir](#test-starteverything-creates-artifact-directory) | [test_start_everything_artifact_dir](units/test_ros2_lifecycle.py#L188) |
-| 89 | UNIT-ROS-003 | 9.2 | [StopEverything Shutdown](#test-stopeverything-process-shutdown) | [test_stop_everything_shutdown](units/test_ros2_lifecycle.py#L221) |
-| 90 | UNIT-ROS-004 | 9.2 | [StopEverything Idempotent](#test-stopeverything-idempotency) | [test_stop_everything_idempotent](units/test_ros2_lifecycle.py#L280) |
-| 91 | UNIT-ROS-005 | 9.2 | [Start/Stop Cycle](#test-startstop-cycle) | [test_start_stop_cycle](units/test_ros2_lifecycle.py#L302) |
-| 92 | UNIT-IMU-001 | 9.3 | [Test Bag Available](#test-test-bag-available) | [test_bag_available](units/test_imu_monitor.py#L31) |
-| 93 | UNIT-IMU-002 | 9.3 | [IMU Monitor Stabilization](#test-imu-monitor-detects-stabilization) | [test_imu_monitor_detects_stabilization](units/test_imu_monitor.py#L42) |
-| 94 | UNIT-IMU-003 | 9.3 | [Status File Created on Start](#test-status-file-created-on-start) | [test_status_file_created_on_start](units/test_imu_monitor.py#L140) |
-| 95 | UNIT-IMU-004 | 9.3 | [MSTD Calculation Basic](#test-mstd-calculation-basic) | [test_calculate_std_basic](units/test_imu_monitor.py#L200) |
-| 96 | UNIT-IMU-005 | 9.3 | [MSTD Calculation Constant](#test-mstd-calculation-constant-values) | [test_calculate_std_constant_values](units/test_imu_monitor.py#L231) |
-| 97 | UNIT-IMU-006 | 9.3 | [MSTD Calculation High Variance](#test-mstd-calculation-high-variance) | [test_calculate_std_high_variance](units/test_imu_monitor.py#L251) |
+| 52 | MAP-PREFIX-001 | 2.5 | [Start Mapping with Name Prefix](#test-start-mapping-with-name-prefix) | [test_start_mapping_with_name_prefix](api/test_mapping_api.py#L879) |
+| 53 | MAP-PREFIX-002 | 2.5 | [Incremental Naming with Same Prefix](#test-incremental-naming-with-same-prefix) | [test_start_mapping_incremental_naming](api/test_mapping_api.py#L930) |
+| 54 | CAT-RET-001 | 3.1 | [Get Full Catalog](#test-get-full-catalog) | [test_get_full_catalog](api/test_catalog_api.py#L24) |
+| 55 | CAT-RET-002 | 3.1 | [Get Empty Catalog](#test-get-empty-catalog) | [test_get_empty_catalog](api/test_catalog_api.py#L101) |
+| 56 | CAT-META-001 | 3.2 | [Get Image Metadata](#test-get-image-metadata) | [test_get_image_metadata](api/test_catalog_api.py#L134) |
+| 57 | CAT-META-002 | 3.2 | [Get Metadata for Non-Existent File](#test-get-metadata-for-non-existent-file) | [test_get_metadata_nonexistent_file](api/test_catalog_api.py#L164) |
+| 58 | CAT-DEL-001 | 3.3 | [Delete Item by UUID](#test-delete-item-by-uuid) | [test_delete_item_by_uuid](api/test_catalog_api.py#L183) |
+| 59 | CAT-DEL-002 | 3.3 | [Delete Non-Existent Item](#test-delete-non-existent-item) | [test_delete_nonexistent_item](api/test_catalog_api.py#L227) |
+| 60 | CAT-REN-001 | 3.4 | [Rename Item](#test-rename-item) | [test_rename_item](api/test_catalog_api.py#L247) |
+| 61 | CAT-REN-002 | 3.4 | [Rename with Duplicate Name](#test-rename-with-duplicate-name) | [test_rename_with_duplicate_name](api/test_catalog_api.py#L296) |
+| 62 | CAT-EXP-001 | 3.5 | [Export Item to USB](#test-export-item-to-usb) | [test_export_item_to_usb](api/test_catalog_api.py#L360) |
+| 63 | CAT-EXP-002 | 3.5 | [Export Invalid Item](#test-export-invalid-item) | [test_export_invalid_item](api/test_catalog_api.py#L399) |
+| 64 | CAT-FILE-001 | 3.6 | [Get Item Files](#test-get-item-files) | [test_get_item_files](api/test_catalog_api.py#L424) |
+| 65 | CAT-FILE-002 | 3.6 | [Get Files Non-Existent Item](#test-get-files-for-non-existent-item) | [test_get_files_nonexistent_item](api/test_catalog_api.py#L461) |
+| 66 | STO-REM-001 | 4.1 | [List USB Devices](#test-list-usb-devices) | [test_list_usb_devices_with_usb_connected](api/test_storage_api.py#L21) |
+| 67 | STO-REM-002 | 4.1 | [No USB Devices](#test-no-usb-devices) | [test_list_usb_devices_with_no_usb](api/test_storage_api.py#L77) |
+| 68 | STO-INT-001 | 4.2 | [Get Internal Storage Usage](#test-get-internal-storage-usage) | [test_get_internal_storage_usage](api/test_storage_api.py#L96) |
+| 69 | STO-INT-002 | 4.2 | [Format Internal Storage](#test-format-internal-storage) | [test_format_internal_storage](api/test_storage_api.py#L159) |
+| 70 | STO-EXT-001 | 4.3 | [Format External Storage](#test-format-external-storage) | [test_format_external_storage](api/test_storage_api.py#L207) |
+| 71 | STO-EXT-002 | 4.3 | [Format Non-Existent Device](#test-format-non-existent-device) | [test_format_external_storage_non_existent_device](api/test_storage_api.py#L256) |
+| 72 | EXP-QUE-001 | 5.1 | [Get Export Progress - Empty Queue](#test-get-export-progress---empty-queue) | [test_get_export_progress_empty_queue](api/test_export_api.py#L16) |
+| 73 | EXP-QUE-002 | 5.1 | [Get Export Progress - Active](#test-get-export-progress---active) | [test_get_export_progress_active](api/test_export_api.py#L53) |
+| 74 | EE-001 | 7 | [Complete Photo Capture Workflow](#ee-1-complete-photo-capture-workflow) | [test_ee_complete_photo_capture_workflow](ee/test_ee.py#L175) |
+| 75 | EE-002 | 7 | [Video Recording Workflow](#ee-2-video-recording-workflow) | [test_ee_video_recording_workflow](ee/test_ee.py#L279) |
+| 76 | EE-003 | 7 | [Spatial Mapping Workflow](#ee-3-spatial-mapping-workflow) | [test_ee_spatial_mapping_workflow](ee/test_ee.py#L426) |
+| 77 | EE-004 | 7 | [Storage Management Workflow](#ee-4-storage-management-workflow) | [test_ee_storage_management_workflow](ee/test_ee.py#L723) |
+| 78 | EE-005 | 7 | [Multi-Export Queue Management](#ee-5-multi-export-queue-management) | [test_ee_multi_export_queue_management](ee/test_ee.py#L808) |
+| 79 | EE-006 | 7 | [Preview Switching During Recording](#ee-6-preview-switching-during-recording) | [test_ee_preview_switching_during_recording](ee/test_ee.py#L899) |
+| 80 | LOAD-001 | 8 | [Rapid Capture Sequence](#load-1-rapid-capture-sequence) | [test_rapid_capture_sequence](test_performance.py#L26) |
+| 81 | LOAD-002 | 8 | [Long Recording Session](#load-2-long-recording-session) | [test_long_recording_session](test_performance.py#L131) |
+| 82 | LOAD-003 | 8 | [Large Export Queue](#load-3-large-export-queue) | [test_large_export_queue](test_performance.py#L252) |
+| 83 | UNIT-FIN-001 | 9.1 | [do_finalize Valid PCD](#test-do_finalize-with-valid-pcd-file) | [test_do_finalize_valid_pcd](units/test_finalize_mapping.py#L120) |
+| 84 | UNIT-FIN-002 | 9.1 | [do_finalize Missing Map](#test-do_finalize-with-missing-map-file) | [test_do_finalize_missing_map](units/test_finalize_mapping.py#L168) |
+| 85 | UNIT-FIN-003 | 9.1 | [do_finalize PLY Format](#test-do_finalize-ply-format) | [test_do_finalize_ply_format](units/test_finalize_mapping.py#L202) |
+| 86 | UNIT-FIN-004 | 9.1 | [do_finalize PCD Format](#test-do_finalize-pcd-format) | [test_do_finalize_pcd_format](units/test_finalize_mapping.py#L218) |
+| 87 | UNIT-FIN-005 | 9.1 | [load_pointcloud PCD File](#test-load_pointcloud-pcd-file) | [test_load_pcd_file](units/test_finalize_mapping.py#L238) |
+| 88 | UNIT-FIN-006 | 9.1 | [load_pointcloud Unsupported Format](#test-load_pointcloud-unsupported-format) | [test_load_unsupported_format](units/test_finalize_mapping.py#L253) |
+| 89 | UNIT-FIN-007 | 9.1 | [calculate_area_volume Box](#test-calculate_area_volume-box) | [test_calculate_area_volume_box](units/test_finalize_mapping.py#L269) |
+| 90 | UNIT-FIN-008 | 9.1 | [calculate_area_volume Empty](#test-calculate_area_volume-empty) | [test_calculate_area_volume_empty](units/test_finalize_mapping.py#L287) |
+| 91 | UNIT-ROS-001 | 9.2 | [StartEverything Node Creation](#test-starteverything-node-creation) | [test_start_everything_nodes](units/test_ros2_lifecycle.py#L126) |
+| 92 | UNIT-ROS-002 | 9.2 | [StartEverything Creates Dir](#test-starteverything-creates-artifact-directory) | [test_start_everything_artifact_dir](units/test_ros2_lifecycle.py#L188) |
+| 93 | UNIT-ROS-003 | 9.2 | [StopEverything Shutdown](#test-stopeverything-process-shutdown) | [test_stop_everything_shutdown](units/test_ros2_lifecycle.py#L221) |
+| 94 | UNIT-ROS-004 | 9.2 | [StopEverything Idempotent](#test-stopeverything-idempotency) | [test_stop_everything_idempotent](units/test_ros2_lifecycle.py#L280) |
+| 95 | UNIT-ROS-005 | 9.2 | [Start/Stop Cycle](#test-startstop-cycle) | [test_start_stop_cycle](units/test_ros2_lifecycle.py#L302) |
+| 96 | UNIT-IMU-001 | 9.3 | [Test Bag Available](#test-test-bag-available) | [test_bag_available](units/test_imu_monitor.py#L31) |
+| 97 | UNIT-IMU-002 | 9.3 | [IMU Monitor Stabilization](#test-imu-monitor-detects-stabilization) | [test_imu_monitor_detects_stabilization](units/test_imu_monitor.py#L42) |
+| 98 | UNIT-IMU-003 | 9.3 | [Status File Created on Start](#test-status-file-created-on-start) | [test_status_file_created_on_start](units/test_imu_monitor.py#L140) |
+| 99 | UNIT-IMU-004 | 9.3 | [MSTD Calculation Basic](#test-mstd-calculation-basic) | [test_calculate_std_basic](units/test_imu_monitor.py#L200) |
+| 100 | UNIT-IMU-005 | 9.3 | [MSTD Calculation Constant](#test-mstd-calculation-constant-values) | [test_calculate_std_constant_values](units/test_imu_monitor.py#L231) |
+| 101 | UNIT-IMU-006 | 9.3 | [MSTD Calculation High Variance](#test-mstd-calculation-high-variance) | [test_calculate_std_high_variance](units/test_imu_monitor.py#L251) |
 
 ---
 
-**Document Version:** 1.5
-**Last Updated:** 2025-12-18
+**Document Version:** 1.6
+**Last Updated:** 2025-12-19
 **Author:** Test Specification Document (Auto-generated from API analysis)
 **Changelog:**
+- v1.6: Added Scan Name Prefix tests (Section 2.5, MAP-PREFIX-001/002)
 - v1.5: Added missing test specs (UNIT-FIN-004 to 007, UNIT-ROS-005, UNIT-IMU-002 to 005), renamed e2e to ee
 - v1.4: Added IMU monitor unit test with mstd detection (Section 9.3)
 - v1.3: Added unit tests for do_finalize, StartEverything, StopEverything (Section 9)

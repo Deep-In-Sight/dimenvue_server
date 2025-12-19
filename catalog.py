@@ -9,6 +9,7 @@ import threading
 import copy
 
 from item_utility import get_item_size, get_folder_size
+import glob
 
 
 class Catalog:
@@ -111,18 +112,47 @@ class Catalog:
     def _get_new_item_name(self):
         return self.now()
 
+    def _get_prefixed_item_name(self, prefix: str) -> str:
+        """
+        Generate a unique item name with prefix and incremental index.
+        E.g., "Scan" -> "Scan_1", "Scan_2", etc.
+        """
+        # Find all existing items with this prefix
+        existing_names = [
+            item["name"] for item in self.data.get("items", {}).values()
+        ]
+
+        # Find the highest index used with this prefix
+        max_index = 0
+        prefix_pattern = f"{prefix}_"
+        for name in existing_names:
+            if name.startswith(prefix_pattern):
+                try:
+                    suffix = name[len(prefix_pattern):]
+                    index = int(suffix)
+                    max_index = max(max_index, index)
+                except ValueError:
+                    continue
+
+        # Return next index
+        return f"{prefix}_{max_index + 1}"
+
     def get_data(self):
         return self.data
 
-
-    def add_item(self, item_type: str, content_path: str):
+    def add_item(self, item_type: str, content_path: str, name_prefix: str = None):
         """
         Adds a new item to the catalog library and update catalog.json
         Args:
             item_type: Type of the item (e.g., "Image", "Video", "Scan")
             content_path: path to the folder containing item files
+            name_prefix: Optional prefix for item name. If provided, generates
+                         names like "prefix_1", "prefix_2". If None, uses timestamp.
         """
-        item_name = self._get_new_item_name()
+        if name_prefix:
+            item_name = self._get_prefixed_item_name(name_prefix)
+        else:
+            item_name = self._get_new_item_name()
         item_uuid = str(uuid4())
         item_disk_path = os.path.join(self.data_path, item_name)
         # Ensure parent directory exists, but NOT item_disk_path itself

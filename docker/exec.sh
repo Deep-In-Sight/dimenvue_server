@@ -17,7 +17,7 @@ fi
 
 # Build the command to run inside container
 # Source ROS2 setup files then execute the provided command
-docker exec -u linh "${CONTAINER_NAME}" bash -c "
+docker exec -u "$(whoami)" "${CONTAINER_NAME}" bash -c "
 source /opt/ros/humble/setup.bash
 source /ros2_ws/install/setup.bash
 $*
