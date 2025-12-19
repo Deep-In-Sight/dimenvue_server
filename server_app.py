@@ -278,6 +278,39 @@ def put_mapping_settings(req: dict[str, Any]):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.get("/health")
+def health_check():
+    """
+    Health check endpoint for connection status.
+
+    Returns:
+        200: {"status": "ok"}
+    """
+    return {"status": "ok"}
+
+
+@app.get("/battery")
+def get_battery_status():
+    """
+    Get battery status for the device.
+
+    Returns:
+        200: {"percentage": int, "charging": bool}
+    """
+    try:
+        battery = psutil.sensors_battery()
+        if battery:
+            return {
+                "percentage": int(battery.percent),
+                "charging": battery.power_plugged
+            }
+    except Exception:
+        pass
+
+    # If no battery sensor available (desktop/server), return mock data
+    return {"percentage": 100, "charging": True}
+
+
 @app.get("/storage/internal/usage")
 def get_internal_storage_usage():
     return get_internal_usage(catalog)
