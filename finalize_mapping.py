@@ -235,11 +235,26 @@ def generate_preview_cloud(points, output_path, voxel_size=0.1):
         # Remove outliers from preview
         pcd_clean, _ = pcd_down.remove_statistical_outlier(nb_neighbors=20, std_ratio=0.8)
 
-        # Save to file
-        o3d.io.write_point_cloud(output_path, pcd_clean)
+        # Get the downsampled points
+        preview_points = np.asarray(pcd_clean.points)
+
+        # Save to file - use laspy for LAS/LAZ, Open3D for others
+        file_ext = os.path.splitext(output_path)[1].lower()
+        if file_ext in ['.las', '.laz']:
+            # Use laspy for LAS/LAZ
+            header = laspy.LasHeader(point_format=0, version="1.2")
+            header.scales = [0.001, 0.001, 0.001]
+            header.offsets = [0.0, 0.0, 0.0]
+            las = laspy.LasData(header)
+            las.x = preview_points[:, 0]
+            las.y = preview_points[:, 1]
+            las.z = preview_points[:, 2]
+            las.write(output_path)
+        else:
+            o3d.io.write_point_cloud(output_path, pcd_clean)
 
         original_count = len(points)
-        preview_count = len(pcd_clean.points)
+        preview_count = len(preview_points)
         print(f"Preview cloud generated: {output_path}")
         print(f"  Original: {original_count:,} points -> Preview: {preview_count:,} points ({100*preview_count/original_count:.1f}%)")
 

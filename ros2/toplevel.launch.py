@@ -110,7 +110,7 @@ def generate_launch_description():
     file_format_lower = PythonExpression(["'", file_format, "'.lower()"])
     recorder_node = Node(
         package='pointcloud_bridge',
-        executable='recorder_node',
+        executable='recorder_node_optimized',
         name='recorder_node',
         output='screen',
         parameters=[{
