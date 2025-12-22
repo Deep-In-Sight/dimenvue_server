@@ -1,0 +1,220 @@
+# Jetson-specific Dockerfile for dimenvue_server
+# Based on L4T JetPack with GStreamer from NVIDIA
+
+FROM nvcr.io/nvidia/l4t-jetpack:r36.3.0
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install build dependencies (GStreamer comes from JetPack, not from source)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    wget \
+    pkg-config \
+    python3-pip \
+    python3-setuptools \
+    python3-wheel \
+    ninja-build \
+    flex \
+    bison \
+    libglib2.0-dev \
+    liborc-0.4-dev \
+    libssl-dev \
+    gettext \
+    autoconf \
+    automake \
+    libtool \
+    gtk-doc-tools \
+    libgirepository1.0-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install meson (needed for some builds)
+RUN pip3 install meson
+
+# Install GStreamer development packages from JetPack
+RUN apt-get update && apt-get install -y \
+    gstreamer1.0-tools \
+    gstreamer1.0-plugins-base \
+    gstreamer1.0-plugins-good \
+    gstreamer1.0-plugins-bad \
+    gstreamer1.0-plugins-ugly \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libgstreamer-plugins-good1.0-dev \
+    libgstreamer-plugins-bad1.0-dev \
+    gstreamer1.0-libav \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install additional dependencies for RidgeRun components
+RUN apt-get update && apt-get install -y \
+    libjansson-dev \
+    libjson-glib-dev \
+    libreadline-dev \
+    libncursesw5-dev \
+    libedit-dev \
+    libdaemon-dev \
+    libsoup2.4-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory for builds
+WORKDIR /build
+
+# Build RidgeRun GStreamer Interpipe
+RUN git clone https://github.com/RidgeRun/gst-interpipe.git && \
+    cd gst-interpipe && \
+    ./autogen.sh --prefix=/usr --libdir=/usr/lib/aarch64-linux-gnu && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd .. && \
+    rm -rf gst-interpipe
+
+# Build RidgeRun GStreamer Daemon (gstd)
+# Note: The python Makefile uses sudo which doesn't exist in Docker
+# So we disable python in libgstc Makefile and install pygstc via pip separately
+RUN git clone https://github.com/RidgeRun/gstd-1.x.git && \
+    cd gstd-1.x && \
+    ./autogen.sh && \
+    ./configure --prefix=/usr --libdir=/usr/lib/aarch64-linux-gnu && \
+    sed -i 's/ python//' libgstc/Makefile && \
+    make -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd libgstc/python && \
+    pip3 install . && \
+    cd /build && \
+    rm -rf gstd-1.x
+
+# Install dependencies for Janus WebRTC
+RUN apt-get update && apt-get install -y \
+    libmicrohttpd-dev \
+    libjansson-dev \
+    libssl-dev \
+    libsrtp2-dev \
+    libsofia-sip-ua-dev \
+    libglib2.0-dev \
+    libopus-dev \
+    libogg-dev \
+    libcurl4-openssl-dev \
+    liblua5.3-dev \
+    libconfig-dev \
+    libnice-dev \
+    libwebsockets-dev \
+    libwebsocketpp-dev \
+    gengetopt \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build libsrtp (specific version for Janus compatibility)
+RUN git clone --depth 1 --branch v2.5.0 https://github.com/cisco/libsrtp.git && \
+    cd libsrtp && \
+    ./configure --prefix=/usr --enable-openssl && \
+    make shared_library -j$(nproc) && \
+    make install && \
+    ldconfig && \
+    cd .. && \
+    rm -rf libsrtp
+
+# Build Janus WebRTC Gateway
+RUN git clone --depth 1 --branch v1.2.1 https://github.com/meetecho/janus-gateway.git && \
+    cd janus-gateway && \
+    sh autogen.sh && \
+    ./configure --prefix=/opt/janus --enable-websockets --disable-post-processing && \
+    make -j$(nproc) && \
+    make install && \
+    make configs && \
+    cd .. && \
+    rm -rf janus-gateway
+
+# Add Janus to PATH
+ENV PATH="/opt/janus/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/opt/janus/lib:${LD_LIBRARY_PATH}"
+
+# Clean up build directory
+WORKDIR /
+RUN rm -rf /build
+
+# Install ROS 2 Humble via apt
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    lsb-release \
+    software-properties-common \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add ROS 2 apt repository
+RUN curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null
+
+# Install ROS 2 Humble
+RUN apt-get update && apt-get install -y \
+    ros-humble-ros-base \
+    ros-humble-rmw-cyclonedds-cpp \
+    python3-colcon-common-extensions \
+    python3-rosdep \
+    && rm -rf /var/lib/apt/lists/*
+
+# Initialize rosdep
+RUN rosdep init || true && rosdep update
+
+# Set up ROS environment for all users (via /etc/bash.bashrc)
+RUN echo "" >> /etc/bash.bashrc && \
+    echo "# ROS2 Humble setup" >> /etc/bash.bashrc && \
+    echo "if [ -f /opt/ros/humble/setup.bash ]; then" >> /etc/bash.bashrc && \
+    echo "    source /opt/ros/humble/setup.bash" >> /etc/bash.bashrc && \
+    echo "fi" >> /etc/bash.bashrc && \
+    echo "" >> /etc/bash.bashrc && \
+    echo "# ROS2 workspace setup" >> /etc/bash.bashrc && \
+    echo "if [ -f /ros2_ws/install/setup.bash ]; then" >> /etc/bash.bashrc && \
+    echo "    source /ros2_ws/install/setup.bash" >> /etc/bash.bashrc && \
+    echo "fi" >> /etc/bash.bashrc
+
+# Also set up for root user specifically
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "[ -f /ros2_ws/install/setup.bash ] && source /ros2_ws/install/setup.bash" >> /root/.bashrc
+
+# Install Python dependencies for dimenvue_server
+RUN apt-get update && \
+    apt-get install -y \
+    python3-pip \
+    libimage-exiftool-perl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone and install dimenvue_server from GitHub
+# Server will be available at: /opt/dimenvue_server
+WORKDIR /opt
+RUN git clone https://github.com/Deep-In-Sight/dimenvue_server.git && \
+    cd dimenvue_server && \
+    pip3 install -r requirements.txt && \
+    cd tests && \
+    pip3 install -r requirements-test.txt
+
+# Reset working directory
+WORKDIR /
+
+# fast-lio deps
+RUN apt-get update && apt-get install -y \
+    libunwind-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install gosu for proper user switching
+RUN apt-get update && \
+    apt-get install -y gosu && \
+    rm -rf /var/lib/apt/lists/* && \
+    gosu nobody true
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Verify installations
+RUN gst-inspect-1.0 --version && \
+    gst-inspect-1.0 interpipesrc || echo "interpipe plugin check" && \
+    gstd --version || echo "gstd check" && \
+    janus --version || echo "janus check" && \
+    python3 -c "from pygstc.gstc import GstdClient; print('pygstc OK')" || echo "pygstc check"
+
+# Set entrypoint
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/bin/bash"]
