@@ -158,21 +158,32 @@ RUN apt-get update && apt-get install -y \
 # Initialize rosdep
 RUN rosdep init || true && rosdep update
 
-# Install Ouster ROS driver dependencies
+# Install ROS packages dependencies (ouster, fast_lio, pointcloud_bridge)
 RUN apt-get update && apt-get install -y \
     libeigen3-dev \
     libjsoncpp-dev \
     libspdlog-dev \
     libpcap-dev \
+    libunwind-dev \
+    libpcl-dev \
+    libboost-all-dev \
+    libgeotiff-dev \
+    libprotobuf-dev \
+    protobuf-compiler \
     ros-humble-pcl-ros \
+    ros-humble-pcl-conversions \
     ros-humble-tf2-eigen \
     && rm -rf /var/lib/apt/lists/*
 
-# Build Ouster ROS driver
+# Clone ROS packages
 RUN mkdir -p /ros2_ws/src && \
     cd /ros2_ws/src && \
     git clone -b ros2 --recurse-submodules https://github.com/ouster-lidar/ouster-ros.git && \
-    . /opt/ros/humble/setup.sh && \
+    git clone -b colormap --recurse-submodules https://github.com/Deep-In-Sight/FAST_LIO.git && \
+    git clone -b perf/recorder-optimization https://github.com/Deep-In-Sight/pointcloud_bridge.git
+
+# Build ROS workspace
+RUN . /opt/ros/humble/setup.sh && \
     cd /ros2_ws && \
     colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
 
@@ -210,11 +221,6 @@ RUN git clone https://github.com/Deep-In-Sight/dimenvue_server.git && \
 
 # Reset working directory
 WORKDIR /
-
-# fast-lio deps
-RUN apt-get update && apt-get install -y \
-    libunwind-dev \
-    && rm -rf /var/lib/apt/lists/*
 
 # Install gosu for proper user switching
 RUN apt-get update && \
