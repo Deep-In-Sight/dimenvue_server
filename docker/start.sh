@@ -94,15 +94,12 @@ echo "      /f/shared_data -> /shared_data"
 echo "      ~/dmv_data -> /dmv_data"
 echo "      /media -> /media (rshared)"
 
-# Server start command
-SERVER_CMD="cd /opt/dimenvue_server && uvicorn server_app:app --host 0.0.0.0 --port 8000 >> /tmp/server.log 2>&1"
-
 # Detect if running in interactive terminal
 if [ "$FORCE_DETACHED" = true ]; then
     # Forced detached mode
     echo -e "${GREEN}Running in detached mode (forced)...${NC}"
     DOCKER_FLAGS="-d"
-    CMD="bash -c '${SERVER_CMD}'"
+    CMD="tail -f /dev/null"
 elif [ -t 0 ]; then
     # Interactive mode
     echo -e "${GREEN}Running in interactive mode...${NC}"
@@ -112,7 +109,7 @@ else
     # Detached mode (no TTY)
     echo -e "${GREEN}Running in detached mode (no TTY detected)...${NC}"
     DOCKER_FLAGS="-d"
-    CMD="bash -c '${SERVER_CMD}'"
+    CMD="tail -f /dev/null"
 fi
 
 # Start the container
