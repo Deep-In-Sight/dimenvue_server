@@ -132,7 +132,8 @@ def generate_launch_description():
             '/ouster/imu'
         ],
         name='bag_recorder',
-        output='screen'
+        output='screen',
+        condition=IfCondition(development_mode)
     )
 
     # 6. Rosbag playback (development mode only)
