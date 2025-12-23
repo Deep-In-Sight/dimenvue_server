@@ -213,7 +213,7 @@ RUN apt-get update && \
 # Clone and install dimenvue_server from GitHub
 # Server will be available at: /opt/dimenvue_server
 WORKDIR /opt
-RUN git clone https://github.com/Deep-In-Sight/dimenvue_server.git && \
+RUN git clone -b jetson https://github.com/Deep-In-Sight/dimenvue_server.git && \
     cd dimenvue_server && \
     pip3 install -r requirements.txt && \
     cd tests && \
