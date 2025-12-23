@@ -45,7 +45,7 @@ async def StartEverything(file_format: str, artifact_dir: str, bag_path: str = "
         f'file_format:={file_format}',
         f'artifact_dir:={artifact_dir}',
         f'bag_path:={bag_path}',
-        'development_mode:=true'  # TODO: Make this configurable via settings
+        'development_mode:=false'  # TODO: Make this configurable via settings
     ]
 
     # Start the launch process

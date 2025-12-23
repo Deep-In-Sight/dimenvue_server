@@ -17,7 +17,7 @@ sleep 1
 docker exec -d -u "$(whoami)" "${CONTAINER_NAME}" bash -c "
 source /opt/ros/humble/setup.bash
 source /ros2_ws/install/setup.bash
-cd /opt/dimenvue_server && uvicorn server_app:app --host 0.0.0.0 --port 8000
+cd /opt/dimenvue_server && uvicorn server_app:app --host 0.0.0.0 --port 8000 > /tmp/dimenvue_server.log 2>&1
 "
 
 echo "Waiting for server to start..."
