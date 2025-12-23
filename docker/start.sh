@@ -126,6 +126,7 @@ docker run ${DOCKER_FLAGS} \
     -e XDG_RUNTIME_DIR=/tmp/runtime-user \
     -e LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/nvidia:\${LD_LIBRARY_PATH} \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
+    -v /tmp/argus_socket:/tmp/argus_socket \
     -v /f/shared_data:/shared_data \
     -v ${HOME}/dmv_data:/dmv_data \
     --mount type=bind,source=/media,target=/media,bind-propagation=rshared \
@@ -136,11 +137,11 @@ docker run ${DOCKER_FLAGS} \
 # Cleanup X11 permissions on exit
 xhost -local:root > /dev/null 2>&1 || true
 
-if [ -t 0 ]; then
-    echo -e "${GREEN}Container stopped.${NC}"
-else
+if [ "$FORCE_DETACHED" = true ] || [ ! -t 0 ]; then
     echo -e "${GREEN}Container '${CONTAINER_NAME}' started successfully in detached mode.${NC}"
     echo -e "${YELLOW}To attach to it, run: ./attach_dimenvue.sh${NC}"
     echo -e "${YELLOW}  or: docker exec -it -u ${USER_NAME} ${CONTAINER_NAME} bash${NC}"
     echo -e "${YELLOW}To stop it, run: docker stop ${CONTAINER_NAME}${NC}"
+else
+    echo -e "${GREEN}Container stopped.${NC}"
 fi
