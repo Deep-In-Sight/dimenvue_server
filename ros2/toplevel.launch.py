@@ -149,12 +149,12 @@ def generate_launch_description():
 
     # 7. Ouster driver (production mode only)
     # Launch ouster_ros driver with sensor IP
+    driver_config = current_dir / 'driver_params.yaml'
     ouster_driver = ExecuteProcess(
         cmd=[
             'ros2', 'launch', 'ouster_ros', 'driver.launch.py',
-            'sensor_hostname:=10.0.0.1',
-            'viz:=false',
-            'proc_mask:=PCL|IMU'
+            f'params_file:={driver_config}',
+            'viz:=false'
         ],
         name='ouster_driver',
         output='screen',
