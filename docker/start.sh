@@ -83,10 +83,9 @@ echo "  - User: ${USER_ID}:${GROUP_ID}"
 echo "  - Network: host"
 echo "  - X11: Enabled"
 echo "  - Mounts:"
-echo "      /home/linh/ros2_ws -> /ros2_ws"
 echo "      /f/shared_data -> /shared_data"
 echo "      /dmv_data -> /dmv_data"
-echo "      /media/linh -> /media/linh (rshared)"
+echo "      /media/${USER_NAME} -> /media/${USER_NAME} (rshared)"
 
 # Detect if running in interactive terminal
 if [ "$FORCE_DETACHED" = true ]; then
@@ -118,10 +117,9 @@ docker run ${DOCKER_FLAGS} \
     -e QT_X11_NO_MITSHM=1 \
     -e XDG_RUNTIME_DIR=/tmp/runtime-user \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
-    -v /home/linh/ros2_ws:/ros2_ws \
     -v /f/shared_data:/shared_data \
     -v /dmv_data:/dmv_data \
-    --mount type=bind,source=/media/linh,target=/media/linh,bind-propagation=rshared \
+    --mount type=bind,source=/media/${USER_NAME},target=/media/${USER_NAME},bind-propagation=rshared \
     -v /run/udev:/run/udev:ro \
     ${IMAGE_NAME} \
     ${CMD}

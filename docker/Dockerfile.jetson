@@ -158,6 +158,24 @@ RUN apt-get update && apt-get install -y \
 # Initialize rosdep
 RUN rosdep init || true && rosdep update
 
+# Install Ouster ROS driver dependencies
+RUN apt-get update && apt-get install -y \
+    libeigen3-dev \
+    libjsoncpp-dev \
+    libspdlog-dev \
+    libpcap-dev \
+    ros-humble-pcl-ros \
+    ros-humble-tf2-eigen \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build Ouster ROS driver
+RUN mkdir -p /ros2_ws/src && \
+    cd /ros2_ws/src && \
+    git clone -b ros2 --recurse-submodules https://github.com/ouster-lidar/ouster-ros.git && \
+    . /opt/ros/humble/setup.sh && \
+    cd /ros2_ws && \
+    colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release
+
 # Set up ROS environment for all users (via /etc/bash.bashrc)
 RUN echo "" >> /etc/bash.bashrc && \
     echo "# ROS2 Humble setup" >> /etc/bash.bashrc && \

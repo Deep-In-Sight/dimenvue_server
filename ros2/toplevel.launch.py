@@ -147,11 +147,15 @@ def generate_launch_description():
         condition=IfCondition(development_mode)
     )
 
-    # 7. Ouster driver node (production mode only)
-    # Note: You may need to adjust this based on your actual ouster driver package
-    ouster_driver_node = Node(
-        package='ros2_ouster',
-        executable='ouster_driver',
+    # 7. Ouster driver (production mode only)
+    # Launch ouster_ros driver with sensor IP
+    ouster_driver = ExecuteProcess(
+        cmd=[
+            'ros2', 'launch', 'ouster_ros', 'driver.launch.py',
+            'sensor_hostname:=10.0.0.1',
+            'viz:=false',
+            'proc_mask:=PCL|IMU'
+        ],
         name='ouster_driver',
         output='screen',
         condition=UnlessCondition(development_mode)
@@ -174,5 +178,5 @@ def generate_launch_description():
 
         # Conditional nodes based on mode
         bag_playback_node,
-        ouster_driver_node
+        ouster_driver
     ])
