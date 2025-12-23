@@ -9,8 +9,14 @@
 set -e
 
 CONTAINER_NAME="dimenvue_server"
-IMAGE_NAME="dimenvue-dev:latest"
 FORCE_DETACHED=false
+IMAGE_NAME="dimenvue_server:jetson"
+
+# Detect platform - this script only works on Jetson
+if [ ! -f /etc/nv_tegra_release ]; then
+    echo "Error: This script is for Jetson platform only."
+    exit 1
+fi
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -70,7 +76,7 @@ fi
 # Check if image exists
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo -e "${RED}Error: Image '${IMAGE_NAME}' not found!${NC}"
-    echo "Please build the image first using: docker build -f Dockerfile.dev -t dimenvue-dev:latest ."
+    echo "Please build the image first: docker build --network=host -f docker/Dockerfile.jetson -t ${IMAGE_NAME} docker/"
     exit 1
 fi
 
@@ -78,6 +84,7 @@ fi
 xhost +local:root > /dev/null 2>&1 || true
 
 echo -e "${GREEN}Creating new container with:${NC}"
+echo "  - Image: ${IMAGE_NAME}"
 echo "  - Name: ${CONTAINER_NAME}"
 echo "  - User: ${USER_ID}:${GROUP_ID}"
 echo "  - Network: host"
