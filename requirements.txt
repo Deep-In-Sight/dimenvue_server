@@ -19,4 +19,4 @@ open3d>=0.17.0,<0.18.0
 laspy>=2.4.0
 
 # Visualization and plotting
-# matplotlib is provided by ROS2 base image (ros-humble-rqt-plot dependency)
+matplotlib>=3.7.0

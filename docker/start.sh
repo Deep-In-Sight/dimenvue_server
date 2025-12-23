@@ -91,8 +91,8 @@ echo "  - Network: host"
 echo "  - X11: Enabled"
 echo "  - Mounts:"
 echo "      /f/shared_data -> /shared_data"
-echo "      /dmv_data -> /dmv_data"
-echo "      /media/${USER_NAME} -> /media/${USER_NAME} (rshared)"
+echo "      ~/dmv_data -> /dmv_data"
+echo "      /media -> /media (rshared)"
 
 # Detect if running in interactive terminal
 if [ "$FORCE_DETACHED" = true ]; then
@@ -115,6 +115,7 @@ fi
 # Start the container
 docker run ${DOCKER_FLAGS} \
     --name ${CONTAINER_NAME} \
+    --runtime nvidia \
     --network host \
     --privileged \
     -e LOCAL_UID=${USER_ID} \
@@ -123,10 +124,11 @@ docker run ${DOCKER_FLAGS} \
     -e DISPLAY=${DISPLAY} \
     -e QT_X11_NO_MITSHM=1 \
     -e XDG_RUNTIME_DIR=/tmp/runtime-user \
+    -e LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/nvidia:\${LD_LIBRARY_PATH} \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /f/shared_data:/shared_data \
-    -v /dmv_data:/dmv_data \
-    --mount type=bind,source=/media/${USER_NAME},target=/media/${USER_NAME},bind-propagation=rshared \
+    -v ${HOME}/dmv_data:/dmv_data \
+    --mount type=bind,source=/media,target=/media,bind-propagation=rshared \
     -v /run/udev:/run/udev:ro \
     ${IMAGE_NAME} \
     ${CMD}
