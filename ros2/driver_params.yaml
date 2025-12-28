@@ -25,7 +25,7 @@ ouster/os_driver:
     # - TIME_FROM_ROS_TIME: This option uses the time of reception of first
     #                       packet of a LidarScan as the timestamp of the IMU,
     #                       PointCloud2 and LaserScan messages.
-    timestamp_mode: 'TIME_FROM_ROS_TIME'
+    timestamp_mode: 'TIME_FROM_INTERNAL_OSC'
     # ptp_utc_tai_offset[optional]: UTC/TAI offset in seconds to apply when
     # TIME_FROM_PTP_1588 timestamp mode is used.
     ptp_utc_tai_offset: -37.0
@@ -35,7 +35,7 @@ ouster/os_driver:
     # - RNG15_RFL8_NIR8
     # - RNG19_RFL8_SIG16_NIR16_DUAL
     # - FUSA_RNG15_RFL8_NIR8_DUAL
-    udp_profile_lidar: ''
+    udp_profile_lidar: 'RNG19_RFL8_SIG16_NIR16'
     # metadata[optional]: path to save metadata file to, if left empty a file
     # with the sensor hostname or ip will be crearted in ~/.ros folder.
     metadata: ''
@@ -71,7 +71,7 @@ ouster/os_driver:
     # use_system_default_qos[optional]: if false, data are published with sensor
     # data QoS. This is preferrable for production but default QoS is needed for
     # rosbag. See: https://github.com/ros2/rosbag2/issues/125
-    use_system_default_qos: false
+    use_system_default_qos: true
     # point_type[optional]: choose from: {original, native, xyz, xyzi, o_xyzi, 
     #                                     yzir}
     # Here is a breif description of each option:
