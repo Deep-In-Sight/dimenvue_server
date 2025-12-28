@@ -2,8 +2,7 @@
 Top-level launch file for DimenvuePro mapping system.
 
 Launches all required nodes for the mapping pipeline:
-- fast_lio node (SLAM)
-- imu_monitor node (initialization tracking)
+- fast_lio node (SLAM with IMU stability monitoring via /mappingState topic)
 - point_cloud_bridge node (streaming)
 - point_cloud_recorder node (saving)
 - raw data recorder (rosbag)
@@ -58,54 +57,37 @@ def generate_launch_description():
     fast_lio_share = get_package_share_directory('fast_lio')
     fast_lio_config = os.path.join(fast_lio_share, 'config', 'ouster32.yaml')
 
-    # Get the directory where this launch file is located (for imu_monitor.py)
+    # Get the directory where this launch file is located
     current_dir = Path(__file__).parent.absolute()
-    imu_monitor_script = str(current_dir / 'imu_monitor.py')
 
-    # 1. Fast-LIO node
+    # 1. Fast-LIO node (also handles IMU stability monitoring, publishes /mappingState)
     # Use ExecuteProcess to set working directory (fast_lio writes laserMapping_node.log to cwd)
     # Remap topics to match ouster sensor topics
     fast_lio_node = ExecuteProcess(
         cmd=[
             'ros2', 'run', 'fast_lio', 'fastlio_mapping',
             '--ros-args',
-            '--params-file', fast_lio_config,
-            '-r', '/lidar:=/ouster/points',
-            '-r', '/imu/data:=/ouster/imu'
+            '--params-file', fast_lio_config
         ],
         name='fastlio_mapping',
         output='screen',
         cwd='/tmp'  # Write log file to /tmp to avoid permission issues
     )
 
-    # 2. IMU Monitor node (as ExecuteProcess for command-line args)
-    # Both development and production mode use /ouster/imu for test_bag
-    imu_monitor_node = ExecuteProcess(
-        cmd=[
-            'python3',
-            imu_monitor_script,
-            '--imu-topic', '/ouster/imu',
-            '--track-duration', '5.0',
-            '--result-path', [artifact_dir, '/imu_stabilization_status.txt']
-        ],
-        name='imu_monitor',
-        output='screen'
-    )
-
-    # 3. Point Cloud Bridge node
+    # 2. Point Cloud Bridge node
     bridge_node = Node(
         package='pointcloud_bridge',
         executable='bridge_node',
         name='bridge_node',
         output='screen',
         parameters=[{
-            'pointcloud_topic': '/cloud_registered_body',
+            'pointcloud_topic': '/cloud_registered',
             'pose_topic': '/Odometry',
             'pose_type': 0
         }]
     )
 
-    # 4. Point Cloud Recorder node
+    # 3. Point Cloud Recorder node
     # Note: file_format must be lowercase (ply, pcd, las, laz)
     file_format_lower = PythonExpression(["'", file_format, "'.lower()"])
     recorder_node = Node(
@@ -114,7 +96,7 @@ def generate_launch_description():
         name='recorder_node',
         output='screen',
         parameters=[{
-            'pointcloud_topic': '/cloud_registered_body',
+            'pointcloud_topic': '/cloud_registered',
             'pose_topic': '/Odometry',
             'pose_type': 0,
             'artifact_dir': artifact_dir,
@@ -122,7 +104,7 @@ def generate_launch_description():
         }]
     )
 
-    # 5. Raw data recorder (ros2 bag record)
+    # 4. Raw data recorder (ros2 bag record)
     # Using ouster topics for test_bag
     bag_recorder = ExecuteProcess(
         cmd=[
@@ -136,7 +118,7 @@ def generate_launch_description():
         condition=IfCondition(development_mode)
     )
 
-    # 6. Rosbag playback (development mode only)
+    # 5. Rosbag playback (development mode only)
     bag_playback_node = ExecuteProcess(
         cmd=[
             'ros2', 'bag', 'play',
@@ -148,7 +130,7 @@ def generate_launch_description():
         condition=IfCondition(development_mode)
     )
 
-    # 7. Ouster driver (production mode only)
+    # 6. Ouster driver (production mode only)
     # Launch ouster_ros driver with sensor IP
     driver_config = current_dir / 'driver_params.yaml'
     ouster_driver = ExecuteProcess(
@@ -172,7 +154,6 @@ def generate_launch_description():
 
         # Core nodes (always running)
         fast_lio_node,
-        imu_monitor_node,
         bridge_node,
         recorder_node,
         bag_recorder,

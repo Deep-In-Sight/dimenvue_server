@@ -199,9 +199,9 @@ class MappingApp:
         while True:
             imu_status = GetInitStatus()
             async with self._state_lock:
-                if imu_status == "TRACKING" and self.state == MappingState.STARTING:
+                if imu_status == "STABILIZING" and self.state == MappingState.STARTING:
                     self.state = MappingState.INITIALIZING
-                elif imu_status == "STABILIZED" and self.state == MappingState.INITIALIZING:
+                elif imu_status == "RUNNING" and self.state == MappingState.INITIALIZING:
                     self.state = MappingState.RUNNING
                     break
             await asyncio.sleep(1.0)

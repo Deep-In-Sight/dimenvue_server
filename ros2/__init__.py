@@ -92,25 +92,26 @@ async def StopEverything():
 
 def GetInitStatus() -> str:
     """
-    Return the IMU stabilization status.
-    Read from the imu monitor result file.
+    Return the mapping state from /mappingState topic.
 
     Returns:
-        Status string: "TRACKING", "STABILIZED", or "UNKNOWN" if file doesn't exist
+        Status string: "IDLE", "STABILIZING", "RUNNING", or "UNKNOWN" if unavailable
     """
-    global _artifact_dir
-
-    if not _artifact_dir:
-        return "UNKNOWN"
-
-    status_file = os.path.join(_artifact_dir, "imu_stabilization_status.txt")
-
     try:
-        with open(status_file, 'r') as f:
-            status = f.read().strip()
-            return status
-    except FileNotFoundError:
+        result = subprocess.run(
+            ['ros2', 'topic', 'echo', '--field', 'data', '--once', '/mappingState'],
+            capture_output=True,
+            text=True,
+            timeout=2.0
+        )
+        if result.returncode == 0:
+            # Output format: "RUNNING\n---\n"
+            status = result.stdout.splitlines()[0].strip()
+            if status in ("IDLE", "STABILIZING", "RUNNING"):
+                return status
+        return "UNKNOWN"
+    except (subprocess.TimeoutExpired, IndexError):
         return "UNKNOWN"
     except Exception as e:
-        print(f"Error reading IMU status file: {e}")
+        print(f"Error getting mapping state: {e}")
         return "UNKNOWN"

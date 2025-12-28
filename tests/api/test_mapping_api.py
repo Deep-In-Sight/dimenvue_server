@@ -75,13 +75,13 @@ async def test_verify_node_launch_after_start(async_client: AsyncClient):
 async def test_automatic_transition_starting_to_initializing(async_client: AsyncClient):
     """
     Test 3: Automatic State Transition STARTING → INITIALIZING
-    IMU status "TRACKING" triggers transition
+    IMU status "STABILIZING" triggers transition
     """
-    # Mock GetInitStatus to return TRACKING
+    # Mock GetInitStatus to return STABILIZING
     with patch('mapping_app.StartEverything', new_callable=AsyncMock), \
          patch('mapping_app.GetInitStatus') as mock_status:
 
-        # Initially UNKNOWN, then TRACKING
+        # Initially UNKNOWN, then STABILIZING
         mock_status.return_value = "UNKNOWN"
 
         # Start mapping
@@ -89,7 +89,7 @@ async def test_automatic_transition_starting_to_initializing(async_client: Async
         assert response.status_code == 200
 
         # Simulate IMU starting to track
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
 
         # Wait for polling task to update state
         await asyncio.sleep(1.5)
@@ -106,7 +106,7 @@ async def test_automatic_transition_starting_to_initializing(async_client: Async
 async def test_automatic_transition_initializing_to_running(async_client: AsyncClient):
     """
     Test 4: Automatic State Transition INITIALIZING → RUNNING
-    IMU status "STABILIZED" triggers transition
+    IMU status "RUNNING" triggers transition
     """
     with patch('mapping_app.StartEverything', new_callable=AsyncMock), \
          patch('mapping_app.GetInitStatus') as mock_status:
@@ -119,11 +119,11 @@ async def test_automatic_transition_initializing_to_running(async_client: AsyncC
         assert response.status_code == 200
 
         # Simulate IMU tracking
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
         # Simulate IMU stabilized
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Check state has transitioned to RUNNING
@@ -147,10 +147,10 @@ async def test_duplicate_mapping_start_running(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Try to start again while running
@@ -177,7 +177,7 @@ async def test_duplicate_mapping_start_initializing(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
         # Try to start again while initializing
@@ -206,10 +206,10 @@ async def test_start_during_stopping(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Make stop slow so we can catch the stopping state
@@ -283,10 +283,10 @@ async def test_stop_mapping_from_running(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Stop mapping
@@ -321,7 +321,7 @@ async def test_stop_mapping_during_initializing(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
         # Try to stop while initializing
@@ -379,10 +379,10 @@ async def test_stop_mapping_during_stopping(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Make stop slow
@@ -489,7 +489,7 @@ async def test_get_mapping_state_initializing(async_client: AsyncClient):
         await async_client.put("/mappingApp/start")
 
         # Transition to INITIALIZING
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
         # Check state
@@ -513,10 +513,10 @@ async def test_get_mapping_state_running(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Check state
@@ -542,10 +542,10 @@ async def test_get_mapping_state_stopping(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Make stop slow so we can catch stopping state
@@ -624,10 +624,10 @@ async def test_concurrent_stop_requests(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Send 3 concurrent stop requests
@@ -679,10 +679,10 @@ async def test_rapid_start_stop_cycle(async_client: AsyncClient):
             assert start_response.status_code == 200, f"Cycle {cycle}: Start failed"
 
             # Transition to RUNNING
-            mock_status.return_value = "TRACKING"
+            mock_status.return_value = "STABILIZING"
             await asyncio.sleep(1.5)
 
-            mock_status.return_value = "STABILIZED"
+            mock_status.return_value = "RUNNING"
             await asyncio.sleep(1.5)
 
             # Verify running state
@@ -794,10 +794,10 @@ async def test_update_settings_during_mapping(async_client: AsyncClient):
         mock_status.return_value = "UNKNOWN"
         await async_client.put("/mappingApp/start")
 
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Get current settings (active settings during mapping)
@@ -900,10 +900,10 @@ async def test_start_mapping_with_name_prefix(async_client: AsyncClient):
         assert data["state"] == "starting"
 
         # Transition to RUNNING
-        mock_status.return_value = "TRACKING"
+        mock_status.return_value = "STABILIZING"
         await asyncio.sleep(1.5)
 
-        mock_status.return_value = "STABILIZED"
+        mock_status.return_value = "RUNNING"
         await asyncio.sleep(1.5)
 
         # Stop mapping to trigger catalog add
@@ -952,10 +952,10 @@ async def test_start_mapping_incremental_naming(async_client: AsyncClient):
             assert start_response.status_code == 200
 
             # Transition to RUNNING
-            mock_status.return_value = "TRACKING"
+            mock_status.return_value = "STABILIZING"
             await asyncio.sleep(1.5)
 
-            mock_status.return_value = "STABILIZED"
+            mock_status.return_value = "RUNNING"
             await asyncio.sleep(1.5)
 
             # Stop mapping
