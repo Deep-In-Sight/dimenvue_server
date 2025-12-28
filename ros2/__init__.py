@@ -16,6 +16,11 @@ from typing import Optional
 _launch_process: Optional[subprocess.Popen] = None
 _artifact_dir: str = ""
 
+# Persistent state subscriber
+_state_subscriber: Optional[subprocess.Popen] = None
+_state_reader_task: Optional[asyncio.Task] = None
+_current_state: str = "UNKNOWN"
+
 
 async def StartEverything(file_format: str, artifact_dir: str, bag_path: str = "/shared_data/test_bag"):
     """
@@ -60,12 +65,18 @@ async def StartEverything(file_format: str, artifact_dir: str, bag_path: str = "
     # Give it a moment to start
     await asyncio.sleep(0.5)
 
+    # Start persistent state subscriber
+    await _start_state_subscriber()
+
 
 async def StopEverything():
     """
     Shutdown all running ROS2 nodes.
     """
     global _launch_process
+
+    # Stop state subscriber first
+    await _stop_state_subscriber()
 
     if _launch_process is not None:
         try:
@@ -90,28 +101,73 @@ async def StopEverything():
             _launch_process = None
 
 
+async def _read_state_loop():
+    """Background task to read state updates from the subscriber process."""
+    global _current_state, _state_subscriber
+
+    while _state_subscriber and _state_subscriber.poll() is None:
+        try:
+            # Read line asynchronously
+            line = await asyncio.to_thread(_state_subscriber.stdout.readline)
+            if not line:
+                break
+            line = line.strip()
+            # Skip separator lines
+            if line and line != "---":
+                if line in ("IDLE", "STABILIZING", "RUNNING"):
+                    _current_state = line
+        except Exception as e:
+            print(f"Error reading state: {e}")
+            break
+
+
+async def _start_state_subscriber():
+    """Start the persistent state subscriber process."""
+    global _state_subscriber, _state_reader_task, _current_state
+
+    _current_state = "UNKNOWN"
+
+    # Start ros2 topic echo without --once to get continuous updates
+    _state_subscriber = subprocess.Popen(
+        ['ros2', 'topic', 'echo', '--field', 'data', '/mappingState'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1  # Line buffered
+    )
+
+    # Start background reader task
+    _state_reader_task = asyncio.create_task(_read_state_loop())
+
+
+async def _stop_state_subscriber():
+    """Stop the persistent state subscriber process."""
+    global _state_subscriber, _state_reader_task, _current_state
+
+    if _state_reader_task:
+        _state_reader_task.cancel()
+        try:
+            await _state_reader_task
+        except asyncio.CancelledError:
+            pass
+        _state_reader_task = None
+
+    if _state_subscriber:
+        _state_subscriber.terminate()
+        try:
+            _state_subscriber.wait(timeout=2.0)
+        except subprocess.TimeoutExpired:
+            _state_subscriber.kill()
+        _state_subscriber = None
+
+    _current_state = "UNKNOWN"
+
+
 def GetInitStatus() -> str:
     """
-    Return the mapping state from /mappingState topic.
+    Return the cached mapping state from /mappingState topic.
 
     Returns:
         Status string: "IDLE", "STABILIZING", "RUNNING", or "UNKNOWN" if unavailable
     """
-    try:
-        result = subprocess.run(
-            ['ros2', 'topic', 'echo', '--field', 'data', '--once', '/mappingState'],
-            capture_output=True,
-            text=True,
-            timeout=2.0
-        )
-        if result.returncode == 0:
-            # Output format: "RUNNING\n---\n"
-            status = result.stdout.splitlines()[0].strip()
-            if status in ("IDLE", "STABILIZING", "RUNNING"):
-                return status
-        return "UNKNOWN"
-    except (subprocess.TimeoutExpired, IndexError):
-        return "UNKNOWN"
-    except Exception as e:
-        print(f"Error getting mapping state: {e}")
-        return "UNKNOWN"
+    return _current_state
