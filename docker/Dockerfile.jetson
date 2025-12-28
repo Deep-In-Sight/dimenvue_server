@@ -13,7 +13,7 @@ RUN mkdir -p /ros2_ws/src && \
     cd /ros2_ws/src && \
     git clone -b ros2 --recurse-submodules https://github.com/ouster-lidar/ouster-ros.git && \
     git clone -b colormap --recurse-submodules https://github.com/Deep-In-Sight/FAST_LIO.git && \
-    git clone -b perf/recorder-optimization https://github.com/Deep-In-Sight/pointcloud_bridge.git
+    git clone https://github.com/Deep-In-Sight/pointcloud_bridge.git
 
 # Build ROS workspace
 RUN . /opt/ros/humble/setup.sh && \

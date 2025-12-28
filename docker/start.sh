@@ -91,6 +91,7 @@ echo "  - Network: host"
 echo "  - X11: Enabled"
 echo "  - Mounts:"
 echo "      /f/shared_data -> /shared_data"
+echo "      ~/ros2_ws -> /ros2_ws"
 echo "      ~/dmv_data -> /dmv_data"
 echo "      /media -> /media (rshared)"
 
@@ -128,6 +129,7 @@ docker run ${DOCKER_FLAGS} \
     -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v /tmp/argus_socket:/tmp/argus_socket \
     -v /f/shared_data:/shared_data \
+    -v ${HOME}/ros2_ws:/ros2_ws \
     -v ${HOME}/dmv_data:/dmv_data \
     --mount type=bind,source=/media,target=/media,bind-propagation=rshared \
     -v /run/udev:/run/udev:ro \

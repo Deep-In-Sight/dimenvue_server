@@ -1,19 +1,24 @@
 #!/bin/bash
 set -e
 
+# Change to script directory
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
 CONTAINER_NAME="dimenvue_server"
 
-# Stop and remove existing container if it exists
+# Restart existing container if it exists
+echo "Checking if container exists"
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
-    echo "Stopping and removing existing container..."
-    docker stop "${CONTAINER_NAME}" 2>/dev/null || true
-    docker rm "${CONTAINER_NAME}" 2>/dev/null || true
+    echo "Restarting existing container..."
+    docker restart "${CONTAINER_NAME}" 2>/dev/null || true
+else
+    echo "Starting new container"
+    ./start.sh -d
+    sleep 1
 fi
 
-./start.sh -d
-sleep 1
-
 # Start uvicorn in detached mode with ROS environment sourced
+echo "Starting API server"
 docker exec -d -u "$(whoami)" "${CONTAINER_NAME}" bash -c "
 source /opt/ros/humble/setup.bash
 source /ros2_ws/install/setup.bash
