@@ -61,17 +61,12 @@ def generate_launch_description():
     current_dir = Path(__file__).parent.absolute()
 
     # 1. Fast-LIO node (also handles IMU stability monitoring, publishes /mappingState)
-    # Use ExecuteProcess to set working directory (fast_lio writes laserMapping_node.log to cwd)
-    # Remap topics to match ouster sensor topics
-    fast_lio_node = ExecuteProcess(
-        cmd=[
-            'ros2', 'run', 'fast_lio', 'fastlio_mapping',
-            '--ros-args',
-            '--params-file', fast_lio_config
-        ],
+    fast_lio_node = Node(
+        package='fast_lio',
+        executable='fastlio_mapping',
+        parameters=[fast_lio_config],
         name='fastlio_mapping',
-        output='screen',
-        cwd='/tmp'  # Write log file to /tmp to avoid permission issues
+        output='screen'
     )
 
     # 2. Point Cloud Bridge node

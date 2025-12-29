@@ -59,7 +59,7 @@ async def StartEverything(file_format: str, artifact_dir: str, bag_path: str = "
         cmd,
         stdout=None,  # Inherit from parent (shows in console)
         stderr=None,  # Inherit from parent
-        preexec_fn=os.setsid  # Create new process group for clean shutdown
+        start_new_session=True  # Create new process group for clean shutdown
     )
 
     # Give it a moment to start
@@ -80,14 +80,15 @@ async def StopEverything():
 
     if _launch_process is not None:
         try:
-            # Send SIGINT to the process group (like Ctrl+C)
+            # Send SIGTERM to the process group for graceful shutdown
+            # SIGTERM works more reliably than SIGINT when there's no controlling TTY
             os.killpg(os.getpgid(_launch_process.pid), signal.SIGINT)
 
             # Wait for graceful shutdown with timeout
             try:
                 await asyncio.wait_for(
                     asyncio.to_thread(_launch_process.wait),
-                    timeout=10.0
+                    timeout=30.0
                 )
             except asyncio.TimeoutError:
                 # Force kill if graceful shutdown fails
