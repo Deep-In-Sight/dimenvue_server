@@ -47,12 +47,12 @@ class CameraState(Enum):
 # Default camera settings with options/range format
 DEFAULT_CAMERA_SETTINGS = {
     "resolution": {
-        "options": ["640x480", "1920x1080", "2432x2048"],
-        "current_selection": 1
+        "options": ["640x480", "1280x720", "1920x1080", "2432x2048"],
+        "current_selection": 3
     },
     "framerate": {
         "options": [10, 30, 60],
-        "current_selection": 1
+        "current_selection": 0
     },
     "capture_format": {
         "options": ["JPG", "PNG"],
@@ -61,10 +61,6 @@ DEFAULT_CAMERA_SETTINGS = {
     "capture_quality": {
         "options": ["Low", "Mid", "High"],
         "current_selection": 2
-    },
-    "record_format": {
-        "options": ["MP4", "AVI"],
-        "current_selection": 0
     },
     "record_bitrate": {
         "range": [1, 15],
@@ -77,8 +73,20 @@ DEFAULT_CAMERA_SETTINGS = {
 }
 
 
+def _is_jetson_platform() -> bool:
+    """Detect if running on NVIDIA Jetson platform."""
+    # Check for Jetson-specific file
+    if os.path.exists("/etc/nv_tegra_release"):
+        return True
+    # Fallback: check kernel version for tegra
+    try:
+        import platform
+        return "tegra" in platform.release().lower()
+    except Exception:
+        return False
+
+
 class MultiCamApp:
-    TEST_MODE = True
     SENSORNAME_MAP = {
         0: "left",
         1: "front",
@@ -86,6 +94,8 @@ class MultiCamApp:
     }
 
     def __init__(self, media_path: str, catalog: Catalog):
+        # Disable TEST_MODE on Jetson platform (use real cameras)
+        self.TEST_MODE = not _is_jetson_platform()
         self.media_path = media_path
         self.settings_path = os.path.join(media_path, "camera_settings.json")
         self.settings = self._load_settings()
@@ -93,13 +103,14 @@ class MultiCamApp:
         self.capture_tmp_path = os.path.join(media_path, "capture_tmp")
         self.record_tmp_path = os.path.join(media_path, "record_tmp")
 
-        # Create Janus streaming plugin config
-        janus_cfg_path = f'{media_path}/janus.plugin.streaming.jcfg'
-        self._create_janus_config(janus_cfg_path)
+        # Create Janus configs folder with custom streaming config
+        janus_cfg_dir = os.path.join(media_path, "janus_configs")
+        janus_log_path = os.path.join(media_path, "janus.log")
+        self._setup_janus_configs(janus_cfg_dir)
 
-        # Start Janus WebRTC Gateway
+        # Start Janus WebRTC Gateway with -F to specify configs folder
         self.janus_proc = subprocess.Popen(
-            ['/opt/janus/bin/janus', '-C', janus_cfg_path],
+            ['/opt/janus/bin/janus', '-F', janus_cfg_dir, '-L', janus_log_path],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             start_new_session=True
@@ -189,30 +200,34 @@ class MultiCamApp:
             return setting.get("current_selection", setting["range"][0])
         return None
 
-    def _create_janus_config(self, cfg_path):
-        """Create Janus configuration files in media_path"""
-        # Create janus.plugin.streaming.jcfg
-        streaming_config = """# Janus Streaming Plugin Configuration
-general: {
-    #admin_key = "supersecret"
-}
+    def _setup_janus_configs(self, cfg_dir):
+        """Setup Janus configs folder with minimal required configs"""
+        os.makedirs(cfg_dir, exist_ok=True)
+        default_cfg_dir = "/opt/janus/etc/janus"
 
-# Webcam stream - video only (VP8)
+        # Copy only required configs: main + HTTP transport
+        for cfg_name in ["janus.jcfg", "janus.transport.http.jcfg"]:
+            src = os.path.join(default_cfg_dir, cfg_name)
+            if os.path.exists(src):
+                shutil.copy(src, cfg_dir)
+
+        # Write our H264 streaming config
+        streaming_cfg = os.path.join(cfg_dir, "janus.plugin.streaming.jcfg")
+        with open(streaming_cfg, 'w') as f:
+            f.write("""general: {}
+
 webcam: {
     type = "rtp"
     id = 1
-    description = "Live Camera Stream (VP8)"
-    metadata = "Multi-camera feed"
+    description = "H264 Camera Stream"
     audio = false
     video = true
     videoport = 5004
     videopt = 96
-    videocodec = "vp8"
-    videortpmap = "VP8/90000"
+    videocodec = "h264"
+    videofmtp = "profile-level-id=42e01f;packetization-mode=1"
 }
-"""
-        with open(cfg_path, 'w') as f:
-            f.write(streaming_config)
+""")
 
     def connect_to_gstd(self, gstd_proc, timeout=3.0):
         end = time.monotonic() + timeout
@@ -270,6 +285,11 @@ webcam: {
             x = 0 if i == 0 else int(cell_w/2) if i == 1 else cell_w
             y = 0 if i == 1 else cell_h
             pipeline += f"sink_{i}::xpos={x} sink_{i}::ypos={y} sink_{i}::width={cell_w} sink_{i}::height={cell_h} "
+
+        if not self.TEST_MODE:
+            # nvcompositor outputs RGBA, convert back to NV12 to match camera format
+            pipeline += "! nvvidconv "
+
         pipeline += f"! {self.caps} ! interpipesink name=isink_comp sync=false "
 
         for i in range(3):
@@ -289,8 +309,12 @@ webcam: {
         sensor_name = self.SENSORNAME_MAP[camera_index]
 
         if capture_format == "PNG":
-            # pngenc needs RGB/RGBA, not I420 - add videoconvert
-            encoder_element = "videoconvert ! pngenc"
+            # pngenc needs RGB/RGBA - need format conversion
+            if self.TEST_MODE:
+                encoder_element = "videoconvert ! pngenc"
+            else:
+                # nvvidconv converts NVMM to RGB
+                encoder_element = "nvvidconv ! pngenc"
         else:  # JPG
             if self.TEST_MODE:
                 encoder_element = f"jpegenc quality={quality_value}"
@@ -307,45 +331,30 @@ webcam: {
         return pipeline
 
     def _construct_record_pipeline(self, camera_index: int):
-        # Get record settings
-        record_format = (self._get_setting_value("record_format") or "MP4").upper()
         record_bitrate = self._get_setting_value("record_bitrate") or 8
         bitrate_bps = record_bitrate * 1000000  # Convert Mbps to bps
 
         sensor_name = self.SENSORNAME_MAP[camera_index]
-
-        # Build encoder and muxer based on format
-        if record_format == "AVI":
-            muxer_element = "avimux"
-        else:  # MP4
-            muxer_element = "mp4mux"
 
         if self.TEST_MODE:
             encoder_element = f"x264enc bitrate={record_bitrate * 1000}"
         else:
             encoder_element = f"nvv4l2h264enc bitrate={bitrate_bps}"
 
-        sink_location = f"{self.record_tmp_path}/{sensor_name}.{record_format.lower()}"
+        sink_location = f"{self.record_tmp_path}/{sensor_name}.mp4"
         pipeline = (
             f"interpipesrc name=isrc_record{camera_index} listen-to=isink_cam{camera_index} format=time ! "
             f"queue ! "
             f"{encoder_element} ! "
             f"h264parse ! "
-            f"{muxer_element} ! "
+            f"mp4mux ! "
             f"filesink location={sink_location}"
         )
         return pipeline
 
     def _construct_preview_pipeline(self):
         """
-        Constructs RTP/VP8 pipeline for Janus WebRTC streaming.
-
-        Reference pipeline:
-        gst-launch-1.0 -v v4l2src device=/dev/video0
-          ! image/jpeg,width=1280,height=720,framerate=30/1
-          ! jpegdec ! videoconvert
-          ! vp8enc deadline=1 target-bitrate=4000000 min-quantizer=4 max-quantizer=20 cpu-used=2
-          ! rtpvp8pay ! udpsink host=127.0.0.1 port=5004
+        Constructs RTP/H264 pipeline for Janus WebRTC streaming.
         """
         # Get preview quality setting
         preview_quality = self._get_setting_value("preview_quality") or "Mid"
@@ -354,27 +363,27 @@ webcam: {
         bitrate_map = {"Low": 1000000, "Mid": 4000000, "High": 8000000}
         target_bitrate = bitrate_map.get(preview_quality, 4000000)
 
-        # VP8 encoding parameters for low-latency WebRTC streaming
-        vp8_params = f"deadline=1 target-bitrate={target_bitrate} min-quantizer=4 max-quantizer=20 cpu-used=2"
+        # Preview resolution is 1/4 of source (half width, half height)
+        preview_w = self.video_width // 2
+        preview_h = self.video_height // 2
 
         if self.TEST_MODE:
-            # Test mode: interpipesrc → videoconvert → VP8 → RTP → UDP
+            # Test mode: resize with videoscale, encode with x264enc
             pipeline = (
                 f"interpipesrc name=isrc_preview0 listen-to=isink_cam0 format=time ! "
                 f"videoconvert ! "
-                f"vp8enc {vp8_params} ! "
-                f"rtpvp8pay ! "
+                f"x264enc tune=zerolatency bitrate={target_bitrate // 1000} ! "
+                f"rtph264pay config-interval=1 ! "
                 f"udpsink host=127.0.0.1 port=5004"
             )
         else:
-            # Production mode: interpipesrc → nvvidconv → videoconvert → VP8 → RTP → UDP
-            # nvvidconv converts NVMM memory to system memory for vp8enc
+            # Production mode: resize with nvvidconv, encode with nvv4l2h264enc
+            # maxperf-enable + iframeinterval=30 for low latency
             pipeline = (
                 f"interpipesrc name=isrc_preview0 listen-to=isink_cam0 format=time ! "
-                f"nvvidconv ! video/x-raw,format=I420 ! "
-                f"videoconvert ! "
-                f"vp8enc {vp8_params} ! "
-                f"rtpvp8pay ! "
+                f"nvvidconv ! video/x-raw(memory:NVMM),width={preview_w},height={preview_h} ! "
+                f"nvv4l2h264enc bitrate={target_bitrate} preset-level=1 maxperf-enable=true iframeinterval=1 insert-sps-pps=true ! "
+                f"rtph264pay aggregate-mode=zero-latency ! "
                 f"udpsink host=127.0.0.1 port=5004"
             )
         return pipeline
@@ -535,10 +544,17 @@ webcam: {
         for i in range(3):
             self.gstc.pipeline_play(f"psnapshot{i}")
 
-        time.sleep(0.5)
+        # time.sleep(0.5)
 
+        # for i in range(3):
+        #     self.gstc.pipeline_stop(f"psnapshot{i}")
+            
         for i in range(3):
-            self.gstc.pipeline_stop(f"psnapshot{i}")
+            pname = f"psnapshot{i}"
+            # self.gstc.event_eos(pname)
+            self.gstc.bus_filter(pname, "eos")
+            self.gstc.bus_read(pname)
+            self.gstc.pipeline_stop(pname)
 
         gen_thumbnail_factory(files['front'])
 
@@ -614,11 +630,8 @@ webcam: {
             self.gstc.bus_read(pname)
             self.gstc.pipeline_stop(pname)
 
-        # Get record format from settings
-        record_format = self._get_setting_value("record_format").lower()
-
         files = {
-            sensor_name: f"{self.record_tmp_path}/{sensor_name}.{record_format}" for sensor_name in self.SENSORNAME_MAP.values()
+            sensor_name: f"{self.record_tmp_path}/{sensor_name}.mp4" for sensor_name in self.SENSORNAME_MAP.values()
         }
 
         gen_thumbnail_factory(files['front'])
