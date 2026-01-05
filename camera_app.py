@@ -377,14 +377,12 @@ webcam: {
                 f"udpsink host=127.0.0.1 port=5004"
             )
         else:
-            # Production mode: resize with nvvidconv, encode with nvv4l2h264enc
-            # maxperf-enable + iframeinterval=30 for low latency
             pipeline = (
                 f"interpipesrc name=isrc_preview0 listen-to=isink_cam0 format=time ! "
                 f"nvvidconv ! video/x-raw(memory:NVMM),width={preview_w},height={preview_h} ! "
-                f"nvv4l2h264enc bitrate={target_bitrate} preset-level=1 maxperf-enable=true iframeinterval=1 insert-sps-pps=true ! "
-                f"rtph264pay aggregate-mode=zero-latency ! "
-                f"udpsink host=127.0.0.1 port=5004"
+                f"nvv4l2h264enc bitrate={target_bitrate} preset-level=1 maxperf-enable=true insert-sps-pps=true ! "
+                f"rtph264pay config-interval=-1 aggregate-mode=zero-latency ! "
+                f"udpsink host=127.0.0.1 port=5004 sync=false"
             )
         return pipeline
 

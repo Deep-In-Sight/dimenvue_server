@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MultiCamApp GStreamer Pipeline Graph</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { text-align: center; color: #00d4ff; }
+        h2 { color: #ff6b6b; margin-top: 40px; }
+        .mermaid {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .legend {
+            background: #0f3460;
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin: 20px 0;
+            display: inline-block;
+        }
+        .legend-item { margin: 8px 0; }
+        .test { color: #ffd93d; }
+        .prod { color: #6bcb77; }
+        .info-box {
+            background: #1a3a5c;
+            border-left: 4px solid #00d4ff;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 8px 8px 0;
+        }
+        code {
+            background: #0f3460;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>MultiCamApp GStreamer Pipeline Architecture</h1>
+
+    <div class="legend">
+        <div class="legend-item"><span class="test">■ - - -</span> TEST_MODE elements (software encoders, dashed lines)</div>
+        <div class="legend-item"><span class="prod">■ ———</span> PRODUCTION elements (NVIDIA hardware, solid lines)</div>
+    </div>
+
+    <div class="info-box">
+        <strong>Platform Detection:</strong> <code>TEST_MODE</code> is automatically set based on platform.
+        On Jetson (detected via <code>/etc/nv_tegra_release</code> or tegra kernel), TEST_MODE=False uses hardware-accelerated NVIDIA elements.
+    </div>
+
+    <h2>Video Source Pipelines (pcam0/1/2)</h2>
+    <div class="mermaid">
+flowchart LR
+    subgraph pcam0["<b>pcam0</b> - Left Camera"]
+        src0_test["<span style='color:#ffd93d'>videotestsrc</span><br/>pattern=zone-plate"]
+        src0_prod["<span style='color:#6bcb77'>nvarguscamerasrc</span><br/>sensor-id=0"]
+        caps0[["video/x-raw(memory:NVMM)<br/>WxH@FPS, NV12"]]
+        sink0[("interpipesink<br/><b>isink_cam0</b>")]
+        src0_test -.->|TEST| caps0
+        src0_prod -->|PROD| caps0
+        caps0 --> sink0
+    end
+
+    subgraph pcam1["<b>pcam1</b> - Front Camera"]
+        src1_test["<span style='color:#ffd93d'>videotestsrc</span>"]
+        src1_prod["<span style='color:#6bcb77'>nvarguscamerasrc</span><br/>sensor-id=1"]
+        caps1[["video/x-raw(memory:NVMM)<br/>WxH@FPS, NV12"]]
+        sink1[("interpipesink<br/><b>isink_cam1</b>")]
+        src1_test -.->|TEST| caps1
+        src1_prod -->|PROD| caps1
+        caps1 --> sink1
+    end
+
+    subgraph pcam2["<b>pcam2</b> - Right Camera"]
+        src2_test["<span style='color:#ffd93d'>videotestsrc</span>"]
+        src2_prod["<span style='color:#6bcb77'>nvarguscamerasrc</span><br/>sensor-id=2"]
+        caps2[["video/x-raw(memory:NVMM)<br/>WxH@FPS, NV12"]]
+        sink2[("interpipesink<br/><b>isink_cam2</b>")]
+        src2_test -.->|TEST| caps2
+        src2_prod -->|PROD| caps2
+        caps2 --> sink2
+    end
+
+    style src0_test fill:#4a3f22,stroke:#ffd93d
+    style src1_test fill:#4a3f22,stroke:#ffd93d
+    style src2_test fill:#4a3f22,stroke:#ffd93d
+    style src0_prod fill:#2d4a22,stroke:#6bcb77
+    style src1_prod fill:#2d4a22,stroke:#6bcb77
+    style src2_prod fill:#2d4a22,stroke:#6bcb77
+    style sink0 fill:#1a3a5c,stroke:#00d4ff
+    style sink1 fill:#1a3a5c,stroke:#00d4ff
+    style sink2 fill:#1a3a5c,stroke:#00d4ff
+    </div>
+
+    <h2>Composite Pipeline (pcomposite)</h2>
+    <div class="info-box">
+        <strong>Format Consistency Fix:</strong> In production mode, <code>nvcompositor</code> outputs RGBA format.
+        An <code>nvvidconv</code> is added to convert back to NV12, ensuring <code>isink_comp</code> has the same format as camera sinks.
+        This prevents renegotiation when switching preview sources.
+    </div>
+    <div class="mermaid">
+flowchart LR
+    subgraph inputs["Interpipe Sources"]
+        isrc0(("from isink_cam0"))
+        isrc1(("from isink_cam1"))
+        isrc2(("from isink_cam2"))
+    end
+
+    subgraph pcomposite["<b>pcomposite</b>"]
+        q0["queue"]
+        q1["queue"]
+        q2["queue"]
+
+        comp_test["<span style='color:#ffd93d'>compositor</span>"]
+        comp_prod["<span style='color:#6bcb77'>nvcompositor</span>"]
+
+        layout["Layout:<br/>┌─────┬─────┐<br/>│  0  │  2  │<br/>├─────┴─────┤<br/>│     1     │<br/>└───────────┘"]
+
+        nvconv["<span style='color:#6bcb77'>nvvidconv</span><br/>RGBA → NV12"]
+
+        caps_out[["video/x-raw(memory:NVMM)<br/>NV12"]]
+        sink_comp[("interpipesink<br/><b>isink_comp</b>")]
+    end
+
+    isrc0 --> q0
+    isrc1 --> q1
+    isrc2 --> q2
+
+    q0 -.-> comp_test
+    q1 -.-> comp_test
+    q2 -.-> comp_test
+
+    q0 --> comp_prod
+    q1 --> comp_prod
+    q2 --> comp_prod
+
+    comp_test -.->|TEST| caps_out
+    comp_prod -->|PROD| nvconv --> caps_out
+    caps_out --> sink_comp
+
+    style comp_test fill:#4a3f22,stroke:#ffd93d
+    style comp_prod fill:#2d4a22,stroke:#6bcb77
+    style nvconv fill:#2d4a22,stroke:#6bcb77
+    style sink_comp fill:#1a3a5c,stroke:#00d4ff
+    </div>
+
+    <h2>Snapshot Pipelines (psnapshot0/1/2)</h2>
+    <div class="mermaid">
+flowchart LR
+    subgraph sources["Camera Sources"]
+        cam0[("isink_cam0")]
+        cam1[("isink_cam1")]
+        cam2[("isink_cam2")]
+    end
+
+    subgraph psnapshot0["<b>psnapshot0</b> - Left"]
+        snap0_src(("interpipesrc<br/>num-buffers=1"))
+        snap0_enc_test["<span style='color:#ffd93d'>jpegenc</span><br/>or videoconvert+pngenc"]
+        snap0_enc_prod["<span style='color:#6bcb77'>nvjpegenc</span><br/>or videoconvert+pngenc"]
+        snap0_file[["filesink<br/>left.jpg/png"]]
+        snap0_src -.-> snap0_enc_test -.->|TEST| snap0_file
+        snap0_src --> snap0_enc_prod -->|PROD| snap0_file
+    end
+
+    subgraph psnapshot1["<b>psnapshot1</b> - Front"]
+        snap1_src(("interpipesrc<br/>num-buffers=1"))
+        snap1_enc_test["<span style='color:#ffd93d'>jpegenc</span><br/>or videoconvert+pngenc"]
+        snap1_enc_prod["<span style='color:#6bcb77'>nvjpegenc</span><br/>or videoconvert+pngenc"]
+        snap1_file[["filesink<br/>front.jpg/png"]]
+        snap1_src -.-> snap1_enc_test -.->|TEST| snap1_file
+        snap1_src --> snap1_enc_prod -->|PROD| snap1_file
+    end
+
+    subgraph psnapshot2["<b>psnapshot2</b> - Right"]
+        snap2_src(("interpipesrc<br/>num-buffers=1"))
+        snap2_enc_test["<span style='color:#ffd93d'>jpegenc</span><br/>or videoconvert+pngenc"]
+        snap2_enc_prod["<span style='color:#6bcb77'>nvjpegenc</span><br/>or videoconvert+pngenc"]
+        snap2_file[["filesink<br/>right.jpg/png"]]
+        snap2_src -.-> snap2_enc_test -.->|TEST| snap2_file
+        snap2_src --> snap2_enc_prod -->|PROD| snap2_file
+    end
+
+    cam0 -.-> snap0_src
+    cam1 -.-> snap1_src
+    cam2 -.-> snap2_src
+
+    style snap0_enc_test fill:#4a3f22,stroke:#ffd93d
+    style snap0_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style snap1_enc_test fill:#4a3f22,stroke:#ffd93d
+    style snap1_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style snap2_enc_test fill:#4a3f22,stroke:#ffd93d
+    style snap2_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style snap0_file fill:#3d2244,stroke:#ff6b6b
+    style snap1_file fill:#3d2244,stroke:#ff6b6b
+    style snap2_file fill:#3d2244,stroke:#ff6b6b
+    </div>
+
+    <h2>Record Pipelines (precord0/1/2)</h2>
+    <div class="mermaid">
+flowchart LR
+    subgraph sources2["Camera Sources"]
+        rcam0[("isink_cam0")]
+        rcam1[("isink_cam1")]
+        rcam2[("isink_cam2")]
+    end
+
+    subgraph precord0["<b>precord0</b> - Left"]
+        rec0_src(("interpipesrc"))
+        rec0_q["queue"]
+        rec0_enc_test["<span style='color:#ffd93d'>x264enc</span>"]
+        rec0_enc_prod["<span style='color:#6bcb77'>nvv4l2h264enc</span>"]
+        rec0_parse["h264parse"]
+        rec0_mux["mp4mux"]
+        rec0_file[["filesink<br/>left.mp4"]]
+
+        rec0_src --> rec0_q
+        rec0_q -.-> rec0_enc_test -.-> rec0_parse
+        rec0_q --> rec0_enc_prod --> rec0_parse
+        rec0_parse --> rec0_mux --> rec0_file
+    end
+
+    subgraph precord1["<b>precord1</b> - Front"]
+        rec1_src(("interpipesrc"))
+        rec1_q["queue"]
+        rec1_enc_test["<span style='color:#ffd93d'>x264enc</span>"]
+        rec1_enc_prod["<span style='color:#6bcb77'>nvv4l2h264enc</span>"]
+        rec1_parse["h264parse"]
+        rec1_mux["mp4mux"]
+        rec1_file[["filesink<br/>front.mp4"]]
+
+        rec1_src --> rec1_q
+        rec1_q -.-> rec1_enc_test -.-> rec1_parse
+        rec1_q --> rec1_enc_prod --> rec1_parse
+        rec1_parse --> rec1_mux --> rec1_file
+    end
+
+    subgraph precord2["<b>precord2</b> - Right"]
+        rec2_src(("interpipesrc"))
+        rec2_q["queue"]
+        rec2_enc_test["<span style='color:#ffd93d'>x264enc</span>"]
+        rec2_enc_prod["<span style='color:#6bcb77'>nvv4l2h264enc</span>"]
+        rec2_parse["h264parse"]
+        rec2_mux["mp4mux"]
+        rec2_file[["filesink<br/>right.mp4"]]
+
+        rec2_src --> rec2_q
+        rec2_q -.-> rec2_enc_test -.-> rec2_parse
+        rec2_q --> rec2_enc_prod --> rec2_parse
+        rec2_parse --> rec2_mux --> rec2_file
+    end
+
+    rcam0 -.-> rec0_src
+    rcam1 -.-> rec1_src
+    rcam2 -.-> rec2_src
+
+    style rec0_enc_test fill:#4a3f22,stroke:#ffd93d
+    style rec0_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style rec1_enc_test fill:#4a3f22,stroke:#ffd93d
+    style rec1_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style rec2_enc_test fill:#4a3f22,stroke:#ffd93d
+    style rec2_enc_prod fill:#2d4a22,stroke:#6bcb77
+    style rec0_file fill:#3d2244,stroke:#ff6b6b
+    style rec1_file fill:#3d2244,stroke:#ff6b6b
+    style rec2_file fill:#3d2244,stroke:#ff6b6b
+    </div>
+
+    <h2>Preview Pipeline (ppreview0) - WebRTC H264 Streaming</h2>
+    <div class="info-box">
+        <strong>H264 Encoding:</strong> Preview now uses H264 instead of VP8 for better hardware acceleration on Jetson.
+        <br/><br/>
+        <strong>TEST mode:</strong> <code>videoconvert → x264enc tune=zerolatency → rtph264pay</code>
+        <br/>
+        <strong>PROD mode:</strong> <code>nvvidconv → nvv4l2h264enc → rtph264pay</code>
+    </div>
+    <div class="mermaid">
+flowchart LR
+    subgraph sources3["Switchable Sources (setPreviewIndex)"]
+        psrc0[("isink_cam0<br/>index=0")]
+        psrc1[("isink_cam1<br/>index=1")]
+        psrc2[("isink_cam2<br/>index=2")]
+        psrccomp[("isink_comp<br/>index=3")]
+    end
+
+    subgraph ppreview0["<b>ppreview0</b>"]
+        prev_src(("interpipesrc<br/>listen-to: switchable"))
+
+        subgraph test_path["TEST_MODE Path"]
+            vconv["<span style='color:#ffd93d'>videoconvert</span>"]
+            x264["<span style='color:#ffd93d'>x264enc</span><br/>tune=zerolatency<br/>bitrate=1-8Mbps"]
+        end
+
+        subgraph prod_path["PRODUCTION Path"]
+            nvconv2["<span style='color:#6bcb77'>nvvidconv</span>"]
+            nvenc["<span style='color:#6bcb77'>nvv4l2h264enc</span><br/>preset-level=1<br/>insert-sps-pps=true"]
+        end
+
+        rtppay["rtph264pay<br/>config-interval=1"]
+        udp["udpsink<br/>127.0.0.1:5004"]
+    end
+
+    subgraph janus["<b>Janus WebRTC Gateway</b>"]
+        jstream["Streaming Plugin<br/>videocodec=h264<br/>port 5004"]
+        webrtc["WebRTC<br/>to Browser"]
+        jstream --> webrtc
+    end
+
+    psrc0 -.->|"setPreviewIndex(0)"| prev_src
+    psrc1 -.->|"setPreviewIndex(1)"| prev_src
+    psrc2 -.->|"setPreviewIndex(2)"| prev_src
+    psrccomp -.->|"setPreviewIndex(3)"| prev_src
+
+    prev_src -.-> vconv -.-> x264 -.->|TEST| rtppay
+    prev_src --> nvconv2 --> nvenc -->|PROD| rtppay
+    rtppay --> udp --> jstream
+
+    style vconv fill:#4a3f22,stroke:#ffd93d
+    style x264 fill:#4a3f22,stroke:#ffd93d
+    style nvconv2 fill:#2d4a22,stroke:#6bcb77
+    style nvenc fill:#2d4a22,stroke:#6bcb77
+    style udp fill:#1a3a5c,stroke:#00d4ff
+    style jstream fill:#5c1a3a,stroke:#ff6b6b
+    style webrtc fill:#5c1a3a,stroke:#ff6b6b
+    </div>
+
+    <h2>Complete System Overview</h2>
+    <div class="mermaid">
+flowchart TB
+    subgraph platform["Platform Detection"]
+        detect{"_is_jetson_platform()"}
+        test_mode["TEST_MODE = True<br/>(Software encoders)"]
+        prod_mode["TEST_MODE = False<br/>(NVIDIA hardware)"]
+        detect -.->|"No Jetson"| test_mode
+        detect -->|"Jetson detected"| prod_mode
+    end
+
+    subgraph cameras["Hardware Layer"]
+        c0["Camera 0 (Left)"]
+        c1["Camera 1 (Front)"]
+        c2["Camera 2 (Right)"]
+    end
+
+    subgraph gst["GStreamer Layer"]
+        subgraph capture["Video Capture"]
+            pcam0x["pcam0"]
+            pcam1x["pcam1"]
+            pcam2x["pcam2"]
+        end
+
+        subgraph interpipe["Interpipe Hub<br/>(All NV12 format)"]
+            isink0x[("isink_cam0")]
+            isink1x[("isink_cam1")]
+            isink2x[("isink_cam2")]
+            isinkcompx[("isink_comp")]
+        end
+
+        subgraph processing["Processing Pipelines"]
+            pcompx["pcomposite<br/>(+nvvidconv in PROD)"]
+            psnap["psnapshot0/1/2"]
+            prec["precord0/1/2"]
+            pprev["ppreview0<br/>(H264 encoding)"]
+        end
+    end
+
+    subgraph outputs["Output Layer"]
+        files["Files<br/>JPG/PNG/MP4"]
+        stream["WebRTC Stream<br/>H264 via Janus"]
+    end
+
+    c0 --> pcam0x --> isink0x
+    c1 --> pcam1x --> isink1x
+    c2 --> pcam2x --> isink2x
+
+    isink0x --> pcompx
+    isink1x --> pcompx
+    isink2x --> pcompx
+    pcompx --> isinkcompx
+
+    isink0x --> psnap
+    isink1x --> psnap
+    isink2x --> psnap
+    psnap --> files
+
+    isink0x --> prec
+    isink1x --> prec
+    isink2x --> prec
+    prec --> files
+
+    isink0x --> pprev
+    isink1x --> pprev
+    isink2x --> pprev
+    isinkcompx --> pprev
+    pprev --> stream
+
+    style platform fill:#2a2a4a,stroke:#00d4ff
+    style cameras fill:#2d4a22,stroke:#6bcb77
+    style outputs fill:#3d2244,stroke:#ff6b6b
+    style interpipe fill:#1a3a5c,stroke:#00d4ff
+    </div>
+
+    <h2>Pipeline Element Summary</h2>
+    <div style="overflow-x: auto;">
+    <table style="width:100%; border-collapse: collapse; background: #16213e; border-radius: 8px;">
+        <tr style="background: #0f3460;">
+            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #00d4ff;">Pipeline</th>
+            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #00d4ff;">TEST_MODE (dashed)</th>
+            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #00d4ff;">PRODUCTION (solid)</th>
+        </tr>
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #333;"><b>pcam0/1/2</b><br/>Video Source</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #ffd93d;">videotestsrc → caps → interpipesink</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #6bcb77;">nvarguscamerasrc → caps → interpipesink</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #333;"><b>pcomposite</b><br/>Multi-view</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #ffd93d;">compositor → caps → interpipesink</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #6bcb77;">nvcompositor → <b>nvvidconv</b> → caps → interpipesink</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #333;"><b>psnapshot0/1/2</b><br/>Capture</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #ffd93d;">interpipesrc → jpegenc/pngenc → filesink</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #6bcb77;">interpipesrc → nvjpegenc/pngenc → filesink</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px; border-bottom: 1px solid #333;"><b>precord0/1/2</b><br/>Recording</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #ffd93d;">interpipesrc → queue → x264enc → h264parse → mp4mux → filesink</td>
+            <td style="padding: 12px; border-bottom: 1px solid #333; color: #6bcb77;">interpipesrc → queue → nvv4l2h264enc → h264parse → mp4mux → filesink</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px;"><b>ppreview0</b><br/>WebRTC Stream</td>
+            <td style="padding: 12px; color: #ffd93d;">interpipesrc → videoconvert → x264enc → rtph264pay → udpsink</td>
+            <td style="padding: 12px; color: #6bcb77;">interpipesrc → nvvidconv → nvv4l2h264enc → rtph264pay → udpsink</td>
+        </tr>
+    </table>
+    </div>
+
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+    </script>
+</body>
+</html>
